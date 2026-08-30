@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Model Performance — AI-NIDS Machine Learning Analytics{% endblock %}
+
+{% block content %}
+<div class="panel-tech mb-4">
+    <div class="panel-header">
+        <h1 class="panel-title">RANDOM FOREST MODEL PERFORMANCE METRICS</h1>
+        <span class="mono-font small text-muted">EVALUATION BENCHMARK</span>
+    </div>
+    <p class="text-muted small mb-0">
+        Empirical evaluation metrics extracted directly from the trained binary Random Forest classifier test validation split (`CICIDS2017`).
+    </p>
+</div>
+
+{% if metrics.available %}
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">ACCURACY</span>
+                <span class="metric-value">{{ metrics.accuracy }}</span>
+            </div>
+            <span class="metric-icon">🎯</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">PRECISION</span>
+                <span class="metric-value">{{ metrics.precision }}</span>
+            </div>
+            <span class="metric-icon">📊</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">RECALL</span>
+                <span class="metric-value">{{ metrics.recall }}</span>
+            </div>
+            <span class="metric-icon">⚡</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">F1-SCORE</span>
+                <span class="metric-value">{{ metrics.f1_score }}</span>
+            </div>
+            <span class="metric-icon">⚖️</span>
+        </div>
+    </div>
+</div>
+
+{% if metrics.confusion_matrix %}
+<div class="panel-tech mb-4">
+    <div class="panel-header">
+        <h2 class="panel-title">CONFUSION MATRIX EVALUATION</h2>
+    </div>
+    <div class="table-tech-wrapper">
+        <table class="table-tech traffic-table w-auto">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>PREDICTED BENIGN</th>
+                    <th>PREDICTED ATTACK</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th>ACTUAL BENIGN</th>
+                    <td>{{ metrics.confusion_matrix[0] }}</td>
+                    <td>{{ metrics.confusion_matrix[1] }}</td>
+                </tr>
+                <tr>
+                    <th>ACTUAL ATTACK</th>
+                    <td>{{ metrics.confusion_matrix[2] }}</td>
+                    <td>{{ metrics.confusion_matrix[3] }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="panel-tech">
+    <div class="panel-header">
+        <h2 class="panel-title">SAVED CLASSIFICATION REPORT</h2>
+    </div>
+    <pre class="report-box mb-0">{{ metrics.raw_text }}</pre>
+</div>
+{% else %}
+<div class="panel-tech border-warning">
+    <div class="mono-font text-warning mb-2">⚠ MODEL METRICS UNAVAILABLE</div>
+    <p class="text-muted small mb-0">{{ metrics.raw_text }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

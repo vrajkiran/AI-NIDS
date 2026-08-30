@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Live Traffic — AI-NIDS Real-Time Intrusion Detection{% endblock %}
+
+{% block content %}
+<div class="panel-tech mb-4">
+    <div class="panel-header">
+        <h1 class="panel-title">LIVE NETWORK TRAFFIC FLOW METADATA</h1>
+        <span class="mono-font small text-muted">PASSIVE INSPECTION — NO PAYLOAD STORAGE</span>
+    </div>
+    <p class="text-muted small mb-0">
+        Aggregated 5-tuple flow records computed in real time from monitored network interfaces. Each flow record summarizes bidirectional packet counts, byte volumes, protocol identifiers, and Random Forest classification probabilities.
+    </p>
+</div>
+
+<div class="panel-tech">
+    <div class="table-tech-wrapper">
+        <table class="table-tech traffic-table">
+            <thead>
+            <tr>
+                <th>TIMESTAMP</th>
+                <th>SOURCE ADDRESS</th>
+                <th>DESTINATION ADDRESS</th>
+                <th>PROTOCOL</th>
+                <th>PACKET COUNT</th>
+                <th>BYTE VOLUME</th>
+                <th>PREDICTION</th>
+                <th>CONFIDENCE</th>
+            </tr>
+            </thead>
+            <tbody id="liveTrafficTable">
+            {% for row in traffic %}
+                <tr>
+                    <td>{{ row.timestamp }}</td>
+                    <td>{{ row.source_ip }}:{{ row.source_port }}</td>
+                    <td>{{ row.destination_ip }}:{{ row.destination_port }}</td>
+                    <td>{{ row.protocol }}</td>
+                    <td>{{ row.packet_count }}</td>
+                    <td>{{ row.byte_count }}</td>
+                    <td>
+                        {% if row.prediction == 'ATTACK' %}
+                            <span class="badge-attack">ATTACK</span>
+                        {% else %}
+                            <span class="badge-benign">BENIGN</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ "%.4f"|format(row.confidence) if row.confidence is not none else "N/A" }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="8" class="text-center text-muted py-4">-- NO TRAFFIC RECORDS AVAILABLE --</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Logs
+*.log
+flask-server.err.log
+flask-server.out.log
+flask-web.err.log
+flask-web.out.log
+network_monitor.log
+
+# Temporary Installers
+npcap_installer.exe
+
+# SQLite Database Instance
+database/nids.db
+
+# System & Editor Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

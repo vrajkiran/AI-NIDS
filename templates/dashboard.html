@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — AI-NIDS Real-Time Intrusion Detection{% endblock %}
+
+{% block content %}
+
+<!-- Directive Banner -->
+<div class="directive-alert d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
+    <div>
+        <strong>AUTHORIZED ACCESS MANDATE:</strong> Passive packet inspection active. Monitoring authorized traffic metadata on designated network segments only.
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-warning text-dark mono-font {% if not summary.has_demo_data %}d-none{% endif %}" id="demoBannerBadge">⚡ DEMO MODE ACTIVE</span>
+        <span class="small text-muted mono-font">SYSTEM VERSION 2.0</span>
+    </div>
+</div>
+
+<!-- Header & Controls -->
+<div class="panel-tech mb-4">
+    <div class="panel-header">
+        <h1 class="panel-title">MONITORING CONTROLS & PIPELINE CONFIGURATION</h1>
+        <span class="small text-muted mono-font" id="statusMessage">{{ status.message }}</span>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <form class="control-form" method="post" action="{{ url_for('start_monitoring') }}">
+            <label class="mono-font small text-uppercase">INTERFACE:</label>
+            <select class="form-select-tech" name="interface" style="min-width: 200px;">
+                <option value="">Scapy Default Interface</option>
+                {% for interface in interfaces %}
+                    <option value="{{ interface }}">{{ interface }}</option>
+                {% endfor %}
+            </select>
+
+            <label class="mono-font small text-uppercase ms-md-2">DURATION (SEC):</label>
+            <input class="form-input-tech" type="number" name="duration" min="5" max="3600" value="{{ default_duration }}" style="width: 90px;">
+
+            <button class="btn-teal" type="submit">▶ START MONITORING</button>
+        </form>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <form method="post" action="{{ url_for('stop_monitoring') }}">
+                <button class="btn-rust" type="submit">■ STOP</button>
+            </form>
+
+            <form method="post" action="{{ url_for('load_demo') }}">
+                <button class="btn-clear-log" style="background-color: var(--amber-warning); color: #ffffff; border: none; padding: 6px 12px;" type="submit" title="Seed realistic presentation demo data">⚡ DEMO DATA</button>
+            </form>
+
+            <form method="post" action="{{ url_for('clear_demo') }}">
+                <button class="btn-clear-log" style="padding: 6px 12px;" type="submit" title="Delete ONLY demo records, leaving real records intact">🗑 CLEAR DEMO</button>
+            </form>
+        </div>
+    </div>
+    {% if status.error %}
+        <div class="mono-font small text-danger mt-2" id="errorMessage">⚠ OPERATIONAL ERROR: {{ status.error }}</div>
+    {% endif %}
+</div>
+
+<!-- KPI Metric Cards Row -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">TOTAL PACKETS</span>
+                <span class="metric-value" id="totalPackets">{{ summary.total_packets }}</span>
+            </div>
+            <span class="metric-icon">≡</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">TOTAL FLOWS</span>
+                <span class="metric-value" id="totalFlows">{{ summary.total_flows }}</span>
+            </div>
+            <span class="metric-icon">☩</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card success">
+            <div>
+                <span class="metric-label">NORMAL TRAFFIC</span>
+                <span class="metric-value" id="normalTraffic">{{ summary.normal_traffic }}</span>
+            </div>
+            <span class="metric-icon">🛡</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card danger">
+            <div>
+                <span class="metric-label">DETECTED ATTACKS</span>
+                <span class="metric-value" id="detectedAttacks">{{ summary.detected_attacks }}</span>
+            </div>
+            <span class="metric-icon">⚠️</span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card warning">
+            <div>
+                <span class="metric-label">ACTIVE ALERTS</span>
+                <span class="metric-value" id="activeAlerts">{{ summary.active_alerts }}</span>
+            </div>
+            <span class="metric-icon">🔔</span>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Grid -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="panel-tech h-100">
+            <div class="panel-header">
+                <h2 class="panel-title">BENIGN VS ATTACK</h2>
+            </div>
+            <div style="height: 240px; position: relative;">
+                <canvas id="benignAttackChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="panel-tech h-100">
+            <div class="panel-header">
+                <h2 class="panel-title">TRAFFIC OVER TIME</h2>
+            </div>
+            <div style="height: 240px; position: relative;">
+                <canvas id="trafficTimeChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="panel-tech h-100">
+            <div class="panel-header">
+                <h2 class="panel-title">ATTACK EVENTS</h2>
+            </div>
+            <div style="height: 240px; position: relative;">
+                <canvas id="attackCountChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tables Grid -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-7">
+        <div class="panel-tech h-100">
+            <div class="panel-header">
+                <h2 class="panel-title">RECENT TRAFFIC METADATA</h2>
+                <a class="mono-font small text-decoration-none" style="color: var(--teal-primary);" href="{{ url_for('live') }}">VIEW ALL →</a>
+            </div>
+            <div class="table-tech-wrapper">
+                <table class="table-tech traffic-table">
+                    <thead>
+                        <tr>
+                            <th>TIME</th>
+                            <th>SOURCE IP</th>
+                            <th>DESTINATION IP</th>
+                            <th>PROTOCOL</th>
+                            <th>PACKETS</th>
+                            <th>BYTES</th>
+                            <th>PREDICTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTrafficTable">
+                    {% for row in traffic %}
+                        <tr>
+                            <td>{{ row.timestamp }}</td>
+                            <td>{{ row.source_ip }}</td>
+                            <td>{{ row.destination_ip }}</td>
+                            <td>{{ row.protocol }}</td>
+                            <td>{{ row.packet_count }}</td>
+                            <td>{{ row.byte_count }}</td>
+                            <td>
+                                {% if row.prediction == 'ATTACK' %}
+                                    <span class="badge-attack">ATTACK</span>
+                                {% else %}
+                                    <span class="badge-benign">BENIGN</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">-- NO TRAFFIC DATA AVAILABLE --</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="panel-tech h-100">
+            <div class="panel-header">
+                <h2 class="panel-title">RECENT SECURITY ALERTS</h2>
+                <a class="mono-font small text-decoration-none" style="color: var(--rust-danger);" href="{{ url_for('alerts') }}">VIEW ALL →</a>
+            </div>
+            <div class="table-tech-wrapper">
+                <table class="table-tech alerts-table">
+                    <thead>
+                        <tr>
+                            <th>TIME</th>
+                            <th>SOURCE IP</th>
+                            <th>TYPE</th>
+                            <th>SEVERITY</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentAlertsTable">
+                    {% for alert in alerts %}
+                        <tr>
+                            <td>{{ alert.timestamp }}</td>
+                            <td>{{ alert.source_ip }}</td>
+                            <td>{{ alert.attack_type }}</td>
+                            <td>
+                                {% if alert.severity == 'HIGH' %}
+                                    <span class="badge-severity-high">HIGH</span>
+                                {% else %}
+                                    <span class="badge-severity-medium">MEDIUM</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="mono-font text-uppercase">{{ alert.status }}</span></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Log Bar -->
+<div class="system-log-panel">
+    <div class="log-content">
+        <span class="log-prefix">[ &gt;_ ] SYSTEM LOG</span>
+        <span id="systemLogText">Autonomous packet monitoring engine active. Ready for flow inspection.</span>
+    </div>
+    <button class="btn-clear-log" onclick="clearSystemLog()">CLEAR LOG 🗑</button>
+</div>
+
+{% endblock %}
