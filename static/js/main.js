@@ -191,14 +191,22 @@ async function refreshCharts() {
                 }
             });
 
+            const categoryColors = [
+                "rgba(255, 77, 77, 0.85)",
+                "rgba(255, 193, 7, 0.85)",
+                "rgba(156, 39, 176, 0.85)",
+                "rgba(33, 150, 243, 0.85)",
+                "rgba(76, 175, 80, 0.85)"
+            ];
+
             attackCountChart = new Chart(document.getElementById("attackCountChart"), {
                 type: "bar",
                 data: {
-                    labels: attackLabels.length ? attackLabels : ["HIGH", "MEDIUM"],
+                    labels: attackLabels.length ? attackLabels : ["DDoS", "PortScan"],
                     datasets: [{
                         label: "Alerts",
                         data: attackValues.length ? attackValues : [0, 0],
-                        backgroundColor: [ntRed, ntDarkGray],
+                        backgroundColor: categoryColors,
                         borderWidth: 1,
                         borderColor: ntSurfaceBorder,
                         borderRadius: 4
@@ -224,11 +232,20 @@ async function refreshCharts() {
             return;
         }
 
+        const categoryColors = [
+            "rgba(255, 77, 77, 0.85)",
+            "rgba(255, 193, 7, 0.85)",
+            "rgba(156, 39, 176, 0.85)",
+            "rgba(33, 150, 243, 0.85)",
+            "rgba(76, 175, 80, 0.85)"
+        ];
+
         benignAttackChart.data.datasets[0].data = benignAttackValues;
         trafficTimeChart.data.labels = timeLabels.length ? timeLabels : ["NOW"];
         trafficTimeChart.data.datasets[0].data = timeValues.length ? timeValues : [0];
-        attackCountChart.data.labels = attackLabels.length ? attackLabels : ["HIGH", "MEDIUM"];
+        attackCountChart.data.labels = attackLabels.length ? attackLabels : ["DDoS", "PortScan"];
         attackCountChart.data.datasets[0].data = attackValues.length ? attackValues : [0, 0];
+        attackCountChart.data.datasets[0].backgroundColor = categoryColors;
 
         benignAttackChart.update();
         trafficTimeChart.update();

@@ -74,13 +74,13 @@ def seed_demo_data_connection(cursor) -> None:
         ("2026-08-30 20:50:12", "192.168.1.105", "104.21.52.12", 52410, 443, "TCP", 148, 124500, "BENIGN", 0.9850, "DEMO"),
         ("2026-08-30 20:50:15", "192.168.1.105", "8.8.8.8", 53120, 53, "UDP", 12, 840, "BENIGN", 0.9920, "DEMO"),
         ("2026-08-30 20:51:02", "192.168.1.105", "142.250.190.46", 52414, 443, "TCP", 210, 185200, "BENIGN", 0.9780, "DEMO"),
-        ("2026-08-30 20:51:30", "45.33.32.156", "192.168.1.105", 49152, 80, "TCP", 1250, 1420000, "ATTACK", 0.9940, "DEMO"),
-        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", 60124, 22, "TCP", 45, 3200, "ATTACK", 0.8850, "DEMO"),
+        ("2026-08-30 20:51:30", "45.33.32.156", "192.168.1.105", 49152, 80, "TCP", 1250, 1420000, "DDoS / Flow Anomaly", 0.9940, "DEMO"),
+        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", 60124, 22, "TCP", 45, 3200, "PortScan", 0.8850, "DEMO"),
         ("2026-08-30 20:52:45", "192.168.1.105", "13.107.42.14", 52420, 443, "TCP", 84, 45200, "BENIGN", 0.9910, "DEMO"),
         ("2026-08-30 20:53:10", "192.168.1.120", "192.168.1.1", 54100, 53, "UDP", 6, 420, "BENIGN", 0.9960, "DEMO"),
-        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", 58210, 8080, "TCP", 2150, 2840000, "ATTACK", 0.9980, "DEMO"),
+        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", 58210, 8080, "TCP", 2150, 2840000, "Brute Force", 0.9980, "DEMO"),
         ("2026-08-30 20:54:15", "192.168.1.105", "172.217.16.206", 52432, 443, "TCP", 92, 78400, "BENIGN", 0.9890, "DEMO"),
-        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", 61002, 445, "TCP", 32, 2100, "ATTACK", 0.8720, "DEMO"),
+        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", 61002, 445, "TCP", 32, 2100, "Web Attack", 0.8720, "DEMO"),
     ]
     cursor.executemany(
         """
@@ -94,9 +94,9 @@ def seed_demo_data_connection(cursor) -> None:
 
     demo_alerts = [
         ("2026-08-30 20:51:30", "45.33.32.156", "192.168.1.105", "DDoS / Flow Anomaly", 0.9940, "HIGH", "OPEN", "DEMO"),
-        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", "DDoS / Flow Anomaly", 0.8850, "MEDIUM", "OPEN", "DEMO"),
-        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", "DDoS / Flow Anomaly", 0.9980, "HIGH", "OPEN", "DEMO"),
-        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", "DDoS / Flow Anomaly", 0.8720, "MEDIUM", "OPEN", "DEMO"),
+        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", "PortScan", 0.8850, "MEDIUM", "OPEN", "DEMO"),
+        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", "Brute Force", 0.9980, "HIGH", "OPEN", "DEMO"),
+        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", "Web Attack", 0.8720, "MEDIUM", "OPEN", "DEMO"),
     ]
     cursor.executemany(
         """
@@ -213,7 +213,7 @@ def get_dashboard_summary(database_path: Path) -> dict:
                     END
                 ) AS total_flows,
                 SUM(CASE WHEN prediction = 'BENIGN' THEN 1 ELSE 0 END) AS normal_traffic,
-                SUM(CASE WHEN prediction = 'ATTACK' THEN 1 ELSE 0 END) AS detected_attacks
+                SUM(CASE WHEN prediction != 'BENIGN' AND prediction != 'PENDING' AND prediction != 'ERROR' THEN 1 ELSE 0 END) AS detected_attacks
             FROM network_traffic
             """
         ).fetchone()
@@ -246,14 +246,17 @@ def get_chart_data(database_path: Path) -> dict:
             """
         ).fetchall()
         attacks = connection.execute(
-            "SELECT severity, COUNT(*) AS count FROM alerts GROUP BY severity"
+            "SELECT attack_type AS severity, COUNT(*) AS count FROM alerts GROUP BY attack_type"
         ).fetchall()
 
     label_counts = {row["prediction"]: row["count"] for row in labels}
+    benign_count = label_counts.get("BENIGN", 0)
+    attack_total = sum(count for label, count in label_counts.items() if label not in ["BENIGN", "PENDING", "ERROR"])
+
     return {
         "benign_attack": {
-            "BENIGN": label_counts.get("BENIGN", 0),
-            "ATTACK": label_counts.get("ATTACK", 0),
+            "BENIGN": benign_count,
+            "ATTACK": attack_total,
         },
         "traffic_over_time": list(reversed([dict(row) for row in timeline])),
         "attack_count": [dict(row) for row in attacks],

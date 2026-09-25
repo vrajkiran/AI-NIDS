@@ -26,6 +26,15 @@ app = Flask(__name__)
 app.secret_key = SECRET_KEY
 create_database(DATABASE_PATH)
 
+
+@app.after_request
+def add_no_cache_headers(response):
+    """Ensure browser never caches static files or API responses during development."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 monitor_lock = threading.Lock()
 monitor_thread = None
 monitor_capture = None
@@ -43,6 +52,7 @@ def save_detection(metadata: dict, flow, result: dict) -> None:
         timestamp = datetime.fromtimestamp(metadata["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
         confidence = result.get("confidence")
 
+        pred_label = result.get("attack_type") if result.get("prediction") == "ATTACK" else result.get("prediction", "PENDING")
         traffic_record = {
             "timestamp": timestamp,
             "source_ip": flow.source.ip,
@@ -52,7 +62,7 @@ def save_detection(metadata: dict, flow, result: dict) -> None:
             "protocol": metadata["protocol_name"],
             "packet_count": flow.total_packets,
             "byte_count": flow.total_bytes,
-            "prediction": result.get("prediction", "PENDING"),
+            "prediction": pred_label,
             "confidence": confidence,
         }
         insert_network_traffic(DATABASE_PATH, traffic_record, data_source="REAL")
