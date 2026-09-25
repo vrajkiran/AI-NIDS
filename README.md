@@ -104,30 +104,35 @@ Implemented in `ml/train.py`:
 - Metrics evaluation on test split saved to `ml/model/evaluation_results.txt`.
 - Artifacts saved to `ml/model/`: `random_forest_model.joblib`, `feature_list.joblib`, `preprocessing_info.joblib`.
 
-## 12. Packet Monitoring
+## 12. Packet Monitoring & Flow Lifecycle
 
-Implemented in `network/packet_capture.py`:
+Implemented in `network/packet_capture.py` and `network/flow.py`:
 - Passive packet capture via Scapy (`sniff`).
 - Captures metadata only: Timestamp, Source IP, Destination IP, Source Port, Destination Port, Protocol, Packet Length.
 - Payload storage is strictly disabled for security and privacy.
+- **Flow Aggregation & Eviction**: Packets are grouped into bidirectional 5-tuple flows (`source_ip`, `destination_ip`, `source_port`, `destination_port`, `protocol`).
+- **Flow Finalization**: Rather than polluting the database on every single raw packet, flows are evaluated and persisted upon idle timeout (`DEFAULT_IDLE_TIMEOUT = 15.0s`) and upon capture termination. Suspected attacks trigger immediate alert notification during active capture.
 
 ## 13. Feature Extraction
 
 Implemented in `network/flow.py` and `network/features.py`:
 
-| Feature Name | Description | Calculation |
-|---|---|---|
-| Destination Port | Target port | TCP/UDP destination port |
-| Protocol | IP Protocol number | ICMP (1), TCP (6), UDP (17) |
-| Flow Duration | Microseconds elapsed | `(last_timestamp - first_timestamp) * 1e6` |
-| Total Fwd Packets | Forward packet count | Packets from source to destination |
-| Total Backward Packets | Reverse packet count | Packets from destination to source |
-| Total Length of Fwd Packets | Forward bytes total | Sum of forward packet lengths |
-| Total Length of Bwd Packets | Reverse bytes total | Sum of reverse packet lengths |
-| Fwd Packet Length Mean | Average forward packet size | `Fwd Bytes / Fwd Packets` |
-| Bwd Packet Length Mean | Average reverse packet size | `Bwd Bytes / Bwd Packets` |
-| Flow Bytes/s | Transfer rate (bytes/sec) | `Total Bytes / Duration` |
-| Flow Packets/s | Transfer rate (packets/sec) | `Total Packets / Duration` |
+The Random Forest model consumes a 10-dimensional statistical feature vector extracted from aggregated flow metrics:
+
+| # | Feature Name | Description | Calculation |
+|---|---|---|---|
+| 1 | Destination Port | Target service port | TCP/UDP destination port |
+| 2 | Flow Duration | Microseconds elapsed | `(last_timestamp - first_timestamp) * 1e6` |
+| 3 | Total Fwd Packets | Forward packet count | Packets from source to destination |
+| 4 | Total Backward Packets | Reverse packet count | Packets from destination to source |
+| 5 | Total Length of Fwd Packets | Forward bytes total | Sum of forward packet lengths |
+| 6 | Total Length of Bwd Packets | Reverse bytes total | Sum of reverse packet lengths |
+| 7 | Fwd Packet Length Mean | Average forward packet size | `Fwd Bytes / Fwd Packets` (0 if none) |
+| 8 | Bwd Packet Length Mean | Average reverse packet size | `Bwd Bytes / Bwd Packets` (0 if none) |
+| 9 | Flow Bytes/s | Transfer rate (bytes/sec) | `Total Bytes / Duration` (0 if duration = 0) |
+| 10 | Flow Packets/s | Transfer rate (packets/sec) | `Total Packets / Duration` (0 if duration = 0) |
+
+*Note: Flow metadata (Source IP, Destination IP, Source Port, Protocol, Timestamp) is preserved for 5-tuple conversation grouping, database logging, and threat triage, but is not used as numeric classifier features to avoid IP/protocol overfitting.*
 
 ## 14. Project Modules
 

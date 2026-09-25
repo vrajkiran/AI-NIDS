@@ -159,15 +159,50 @@ def check_required_columns(dataframe: pd.DataFrame) -> None:
         )
 
 
-def convert_labels(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """Convert CICIDS2017 labels into binary values: BENIGN=0, ATTACK=1."""
+def standardize_label(raw_label: str) -> str:
+    """Map raw CICIDS2017 label string to a clean, standardized category."""
+    label_upper = str(raw_label).strip().upper()
+    if "BENIGN" in label_upper:
+        return "BENIGN"
+    elif "DDOS" in label_upper:
+        return "DDoS"
+    elif "DOS" in label_upper:
+        return "DoS"
+    elif "PORTSCAN" in label_upper or "PORT SCAN" in label_upper:
+        return "PortScan"
+    elif "PATATOR" in label_upper or "BRUTE" in label_upper:
+        return "Brute Force"
+    elif "WEB" in label_upper or "SQL" in label_upper or "XSS" in label_upper:
+        return "Web Attack"
+    elif "BOT" in label_upper:
+        return "Botnet"
+    elif "INFILTRATION" in label_upper:
+        return "Infiltration"
+    elif "HEARTBLEED" in label_upper:
+        return "Heartbleed"
+    else:
+        return str(raw_label).strip()
+
+
+def convert_labels(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int], dict[int, str]]:
+    """Convert CICIDS2017 labels into standardized multi-class integer targets."""
     dataframe = dataframe.copy()
-    labels = dataframe[LABEL_COLUMN].astype(str).str.strip().str.upper()
-    dataframe["target"] = np.where(labels == "BENIGN", 0, 1)
-    return dataframe
+    cleaned_labels = dataframe[LABEL_COLUMN].astype(str).map(standardize_label)
+
+    unique_labels = sorted(cleaned_labels.unique())
+    if "BENIGN" in unique_labels:
+        unique_labels.remove("BENIGN")
+        unique_labels = ["BENIGN"] + unique_labels
+
+    label_to_id = {label: idx for idx, label in enumerate(unique_labels)}
+    id_to_label = {idx: label for label, idx in label_to_id.items()}
+
+    dataframe["target"] = cleaned_labels.map(label_to_id)
+    dataframe["target_name"] = cleaned_labels
+    return dataframe, label_to_id, id_to_label
 
 
-def clean_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
+def clean_dataset(dataframe: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int], dict[int, str]]:
     """Clean missing, infinite, duplicate, and non-numeric values."""
     dataframe = normalize_column_names(dataframe)
     check_required_columns(dataframe)
@@ -183,15 +218,15 @@ def clean_dataset(dataframe: pd.DataFrame) -> pd.DataFrame:
         dataframe[column] = pd.to_numeric(dataframe[column], errors="coerce")
 
     dataframe = dataframe.replace([np.inf, -np.inf], np.nan)
-    dataframe = convert_labels(dataframe)
+    dataframe, label_to_id, id_to_label = convert_labels(dataframe)
 
     print(f"Rows after loading selected columns: {before_duplicates}")
     print(f"Duplicate rows removed: {removed_duplicates}")
     print(f"Rows after duplicate removal: {len(dataframe)}")
-    print("Label counts after binary conversion:")
-    print(dataframe["target"].value_counts().rename(index={0: "BENIGN", 1: "ATTACK"}))
+    print("Multi-class distribution:")
+    print(dataframe["target_name"].value_counts())
 
-    return dataframe[SELECTED_FEATURES + ["target"]]
+    return dataframe[SELECTED_FEATURES + ["target"]], label_to_id, id_to_label
 
 
 def split_features_and_label(dataframe: pd.DataFrame):

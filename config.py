@@ -25,9 +25,12 @@ CAPTURE_DURATION = 10
 # Server Configuration
 HOST = "127.0.0.1"
 PORT = 5000
+import os
+SECRET_KEY = os.environ.get("AI_NIDS_SECRET_KEY", "ai-nids-session-secret-key-2026")
 
 # Prediction is optional and requires a trained model from: python ml/train.py
 PREDICTION_ENABLED = False
 HIGH_CONFIDENCE_THRESHOLD = 0.90
 LOG_PATH = BASE_DIR / "network_monitor.log"
+
 

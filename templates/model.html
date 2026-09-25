@@ -21,7 +21,13 @@
                 <span class="metric-label">ACCURACY</span>
                 <span class="metric-value">{{ metrics.accuracy }}</span>
             </div>
-            <span class="metric-icon">🎯</span>
+            <span class="metric-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <circle cx="12" cy="12" r="6"></circle>
+                    <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+            </span>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -30,7 +36,13 @@
                 <span class="metric-label">PRECISION</span>
                 <span class="metric-value">{{ metrics.precision }}</span>
             </div>
-            <span class="metric-icon">📊</span>
+            <span class="metric-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+            </span>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -39,7 +51,11 @@
                 <span class="metric-label">RECALL</span>
                 <span class="metric-value">{{ metrics.recall }}</span>
             </div>
-            <span class="metric-icon">⚡</span>
+            <span class="metric-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+            </span>
         </div>
     </div>
     <div class="col-sm-6 col-lg-3">
@@ -48,12 +64,17 @@
                 <span class="metric-label">F1-SCORE</span>
                 <span class="metric-value">{{ metrics.f1_score }}</span>
             </div>
-            <span class="metric-icon">⚖️</span>
+            <span class="metric-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v18"></path>
+                    <rect x="4" y="8" width="16" height="8" rx="2"></rect>
+                </svg>
+            </span>
         </div>
     </div>
 </div>
 
-{% if metrics.confusion_matrix %}
+{% if metrics.matrix_rows or metrics.confusion_matrix %}
 <div class="panel-tech mb-4">
     <div class="panel-header">
         <h2 class="panel-title">CONFUSION MATRIX EVALUATION</h2>
@@ -63,21 +84,38 @@
             <thead>
                 <tr>
                     <th></th>
-                    <th>PREDICTED BENIGN</th>
-                    <th>PREDICTED ATTACK</th>
+                    {% if metrics.matrix_classes %}
+                        {% for cls in metrics.matrix_classes %}
+                            <th>PREDICTED {{ cls|upper }}</th>
+                        {% endfor %}
+                    {% else %}
+                        <th>PREDICTED BENIGN</th>
+                        <th>PREDICTED ATTACK</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <th>ACTUAL BENIGN</th>
-                    <td>{{ metrics.confusion_matrix[0] }}</td>
-                    <td>{{ metrics.confusion_matrix[1] }}</td>
-                </tr>
-                <tr>
-                    <th>ACTUAL ATTACK</th>
-                    <td>{{ metrics.confusion_matrix[2] }}</td>
-                    <td>{{ metrics.confusion_matrix[3] }}</td>
-                </tr>
+                {% if metrics.matrix_rows %}
+                    {% for row in metrics.matrix_rows %}
+                    <tr>
+                        <th>ACTUAL {{ row.actual|upper }}</th>
+                        {% for val in row.cell_values %}
+                            <td>{{ val }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                {% elif metrics.confusion_matrix %}
+                    <tr>
+                        <th>ACTUAL BENIGN</th>
+                        <td>{{ metrics.confusion_matrix[0] }}</td>
+                        <td>{{ metrics.confusion_matrix[1] }}</td>
+                    </tr>
+                    <tr>
+                        <th>ACTUAL ATTACK</th>
+                        <td>{{ metrics.confusion_matrix[2] }}</td>
+                        <td>{{ metrics.confusion_matrix[3] }}</td>
+                    </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>

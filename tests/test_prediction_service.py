@@ -45,6 +45,29 @@ class TestPredictionService(unittest.TestCase):
         self.assertEqual(calculate_severity("ATTACK", 0.91), "HIGH")
         self.assertEqual(calculate_severity("ATTACK", 0.75), "MEDIUM")
 
+    def test_multiclass_prediction_resolution(self):
+        service = object.__new__(PredictionService)
+        service.model = DemoModel()
+        service.feature_list = ["a"]
+        service.imputer = None
+        service.inverse_label_mapping = {0: "BENIGN", 1: "DDoS", 2: "PortScan"}
+
+        res_benign = service.predict({"a": 10})
+        self.assertEqual(res_benign["prediction"], "BENIGN")
+        self.assertEqual(res_benign["attack_type"], "BENIGN")
+
+        class PortScanModel(DemoModel):
+            def predict(self, dataframe):
+                return [2]
+            def predict_proba(self, dataframe):
+                return [[0.05, 0.05, 0.90]]
+
+        service.model = PortScanModel()
+        res_attack = service.predict({"a": 10})
+        self.assertEqual(res_attack["prediction"], "ATTACK")
+        self.assertEqual(res_attack["attack_type"], "PortScan")
+        self.assertEqual(res_attack["severity"], "HIGH")
+
 
 if __name__ == "__main__":
     unittest.main()

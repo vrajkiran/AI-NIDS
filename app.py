@@ -7,7 +7,7 @@ from datetime import datetime
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
-from config import CAPTURE_DURATION, DATABASE_PATH, EVALUATION_PATH, HOST, NETWORK_INTERFACE, PORT
+from config import CAPTURE_DURATION, DATABASE_PATH, EVALUATION_PATH, HOST, NETWORK_INTERFACE, PORT, SECRET_KEY
 from database.db import (
     clear_demo_data,
     create_database,
@@ -23,6 +23,7 @@ from database.db import (
 from network.packet_capture import PacketCapture, get_interface_names
 
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
 create_database(DATABASE_PATH)
 
 monitor_lock = threading.Lock()
@@ -63,7 +64,7 @@ def save_detection(metadata: dict, flow, result: dict) -> None:
                     "timestamp": timestamp,
                     "source_ip": flow.source.ip,
                     "destination_ip": flow.destination.ip,
-                    "attack_type": "ATTACK",
+                    "attack_type": result.get("attack_type", "DDoS / Flow Anomaly"),
                     "confidence": confidence,
                     "severity": result.get("severity", "MEDIUM"),
                     "status": "OPEN",
@@ -111,7 +112,9 @@ def read_model_metrics() -> dict:
         "precision": "N/A",
         "recall": "N/A",
         "f1_score": "N/A",
-        "confusion_matrix": ("0", "0", "0", "0"),
+        "confusion_matrix": None,
+        "matrix_classes": [],
+        "matrix_rows": [],
     }
     if not EVALUATION_PATH.exists():
         return default_metrics
@@ -125,20 +128,52 @@ def read_model_metrics() -> dict:
             "precision": "N/A",
             "recall": "N/A",
             "f1_score": "N/A",
-            "confusion_matrix": ("0", "0", "0", "0"),
+            "confusion_matrix": None,
+            "matrix_classes": [],
+            "matrix_rows": [],
         }
 
-        for name in ["Accuracy", "Precision", "Recall", "F1-score"]:
-            match = re.search(rf"{re.escape(name)}:\s+([0-9.]+)", text)
-            key = name.lower().replace("-", "_")
-            metrics[key] = match.group(1) if match else "N/A"
+        # First, try to load structured JSON evaluation data
+        json_path = EVALUATION_PATH.parent / "evaluation_results.json"
+        if json_path.exists():
+            import json
+            try:
+                data = json.loads(json_path.read_text(encoding="utf-8"))
+                metrics["accuracy"] = data.get("accuracy", "N/A")
+                metrics["precision"] = data.get("precision", "N/A")
+                metrics["recall"] = data.get("recall", "N/A")
+                metrics["f1_score"] = data.get("f1_score", "N/A")
 
-        matrix_match = re.search(
-            r"Actual BENIGN\s+(\d+)\s+(\d+)[\r\n\s]+Actual ATTACK\s+(\d+)\s+(\d+)",
-            text,
-        )
-        if matrix_match:
-            metrics["confusion_matrix"] = matrix_match.groups()
+                classes = data.get("classes", [])
+                matrix = data.get("matrix", [])
+                if classes and matrix:
+                    metrics["matrix_classes"] = classes
+                    metrics["matrix_rows"] = [
+                        {"actual": classes[i], "cell_values": matrix[i]}
+                        for i in range(len(classes))
+                    ]
+            except Exception as json_err:
+                logging.warning("Could not parse evaluation_results.json: %s", json_err)
+
+        # Fallback to text regex parsing if JSON metrics were not populated
+        if metrics["accuracy"] == "N/A":
+            for name in ["Accuracy", "Precision", "Recall", "F1-score"]:
+                match = re.search(rf"{re.escape(name)}:\s+([0-9.]+)", text)
+                key = name.lower().replace("-", "_")
+                metrics[key] = match.group(1) if match else "N/A"
+
+        if not metrics["matrix_rows"]:
+            matrix_match = re.search(
+                r"Actual BENIGN\s+(\d+)\s+(\d+)[\r\n\s]+Actual ATTACK\s+(\d+)\s+(\d+)",
+                text,
+            )
+            if matrix_match:
+                g = matrix_match.groups()
+                metrics["matrix_classes"] = ["BENIGN", "ATTACK"]
+                metrics["matrix_rows"] = [
+                    {"actual": "BENIGN", "cell_values": [int(g[0]), int(g[1])]},
+                    {"actual": "ATTACK", "cell_values": [int(g[2]), int(g[3])]},
+                ]
 
         return metrics
     except Exception as error:
@@ -216,14 +251,16 @@ def stop_monitoring():
 @app.route("/load-demo", methods=["POST"])
 def load_demo():
     seed_demo_data(DATABASE_PATH)
-    monitor_status["message"] = "Demonstration records loaded successfully"
+    with monitor_lock:
+        monitor_status["message"] = "Demonstration records loaded successfully"
     return redirect(url_for("dashboard"))
 
 
 @app.route("/clear-demo", methods=["POST"])
 def clear_demo():
     clear_demo_data(DATABASE_PATH)
-    monitor_status["message"] = "Demonstration data cleared. Real records preserved."
+    with monitor_lock:
+        monitor_status["message"] = "Demonstration data cleared. Real records preserved."
     return redirect(url_for("dashboard"))
 
 
@@ -263,5 +300,5 @@ def live_traffic():
 
 
 if __name__ == "__main__":
-    app.run(host=HOST, port=PORT, debug=True)
+    app.run(host=HOST, port=PORT, debug=False)
 

@@ -12,10 +12,14 @@
 <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
     <div class="container-fluid">
         <a class="navbar-brand-tech text-decoration-none me-4" href="{{ url_for('dashboard') }}">
-            <span class="brand-icon">🛡</span>
+            <span class="brand-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </span>
             <span>AI-NIDS</span>
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar" aria-controls="topNavbar" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         
@@ -35,7 +39,7 @@
                 </li>
             </ul>
 
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
                 <div class="topbar-badge">
                     <span class="status-dot {% if status.active %}active{% else %}stopped{% endif %}" id="statusDot"></span>
                     <span id="monitorStatus">
@@ -43,7 +47,7 @@
                     </span>
                 </div>
                 <div class="topbar-badge" id="liveClock">
-                    📅 30-08-2026 🕒 --:--:--
+                    📅 --/--/---- 🕒 --:--:--
                 </div>
             </div>
         </div>

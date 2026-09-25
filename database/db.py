@@ -93,10 +93,10 @@ def seed_demo_data_connection(cursor) -> None:
     )
 
     demo_alerts = [
-        ("2026-08-30 20:51:30", "45.33.32.156", "192.168.1.105", "ATTACK", 0.9940, "HIGH", "OPEN", "DEMO"),
-        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", "ATTACK", 0.8850, "MEDIUM", "OPEN", "DEMO"),
-        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", "ATTACK", 0.9980, "HIGH", "OPEN", "DEMO"),
-        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", "ATTACK", 0.8720, "MEDIUM", "OPEN", "DEMO"),
+        ("2026-08-30 20:51:30", "45.33.32.156", "192.168.1.105", "DDoS / Flow Anomaly", 0.9940, "HIGH", "OPEN", "DEMO"),
+        ("2026-08-30 20:52:01", "185.220.101.5", "192.168.1.105", "DDoS / Flow Anomaly", 0.8850, "MEDIUM", "OPEN", "DEMO"),
+        ("2026-08-30 20:53:50", "198.51.100.44", "192.168.1.105", "DDoS / Flow Anomaly", 0.9980, "HIGH", "OPEN", "DEMO"),
+        ("2026-08-30 20:54:55", "103.21.244.0", "192.168.1.105", "DDoS / Flow Anomaly", 0.8720, "MEDIUM", "OPEN", "DEMO"),
     ]
     cursor.executemany(
         """
@@ -205,7 +205,13 @@ def get_dashboard_summary(database_path: Path) -> dict:
             """
             SELECT
                 COALESCE(SUM(packet_count), 0) AS total_packets,
-                COUNT(DISTINCT source_ip || ':' || source_port || '>' || destination_ip || ':' || destination_port || '/' || protocol) AS total_flows,
+                COUNT(DISTINCT
+                    CASE
+                        WHEN (COALESCE(source_ip, '') || '|' || printf('%05d', COALESCE(source_port, 0))) < (COALESCE(destination_ip, '') || '|' || printf('%05d', COALESCE(destination_port, 0)))
+                        THEN COALESCE(source_ip, '') || ':' || COALESCE(source_port, 0) || '<->' || COALESCE(destination_ip, '') || ':' || COALESCE(destination_port, 0) || '|' || COALESCE(protocol, '')
+                        ELSE COALESCE(destination_ip, '') || ':' || COALESCE(destination_port, 0) || '<->' || COALESCE(source_ip, '') || ':' || COALESCE(source_port, 0) || '|' || COALESCE(protocol, '')
+                    END
+                ) AS total_flows,
                 SUM(CASE WHEN prediction = 'BENIGN' THEN 1 ELSE 0 END) AS normal_traffic,
                 SUM(CASE WHEN prediction = 'ATTACK' THEN 1 ELSE 0 END) AS detected_attacks
             FROM network_traffic

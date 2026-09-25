@@ -2,6 +2,29 @@ let benignAttackChart;
 let trafficTimeChart;
 let attackCountChart;
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function predictionBadge(prediction) {
+    const safe = escapeHtml(prediction);
+    if (prediction === "ATTACK") {
+        return '<span class="badge-attack">ATTACK</span>';
+    } else if (prediction === "BENIGN") {
+        return '<span class="badge-benign">BENIGN</span>';
+    } else if (prediction === "PENDING") {
+        return '<span class="badge-pending">PENDING</span>';
+    } else {
+        return `<span class="badge-error">${safe}</span>`;
+    }
+}
+
 function setText(id, value) {
     const element = document.getElementById(id);
     if (element) element.textContent = value;
@@ -95,9 +118,13 @@ async function refreshCharts() {
         const attackLabels = (data.attack_count || []).map((item) => item.severity);
         const attackValues = (data.attack_count || []).map((item) => item.count);
 
-        const tealColor = "#1b4d4f";
-        const rustColor = "#b84a2a";
-        const amberColor = "#c28829";
+        // Nothing OS Monochrome + Signature Red Palette
+        const ntWhite = "#ffffff";
+        const ntRed = "#d71920";
+        const ntDarkGray = "#333333";
+        const ntSurfaceBorder = "#0a0a0a";
+        const ntTickColor = "#8e8e93";
+        const ntGridColor = "rgba(255, 255, 255, 0.05)";
 
         if (!benignAttackChart) {
             benignAttackChart = new Chart(benignCanvas, {
@@ -106,17 +133,26 @@ async function refreshCharts() {
                     labels: ["BENIGN", "ATTACK"],
                     datasets: [{
                         data: benignAttackValues,
-                        backgroundColor: [tealColor, rustColor],
+                        backgroundColor: [ntWhite, ntRed],
                         borderWidth: 2,
-                        borderColor: "#efe7d8"
+                        borderColor: ntSurfaceBorder
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: "bottom", labels: { font: { family: 'JetBrains Mono', size: 11 }, color: '#2b2520' } }
-                    }
+                        legend: {
+                            position: "bottom",
+                            labels: {
+                                font: { family: 'JetBrains Mono', size: 10 },
+                                color: ntTickColor,
+                                boxWidth: 10,
+                                padding: 12
+                            }
+                        }
+                    },
+                    cutout: '72%'
                 }
             });
 
@@ -127,11 +163,14 @@ async function refreshCharts() {
                     datasets: [{
                         label: "Flows",
                         data: timeValues.length ? timeValues : [0],
-                        borderColor: tealColor,
-                        backgroundColor: "rgba(27, 77, 79, 0.15)",
-                        tension: 0.25,
+                        borderColor: ntWhite,
+                        borderWidth: 1.8,
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        tension: 0.2,
                         fill: true,
-                        pointBackgroundColor: tealColor
+                        pointBackgroundColor: ntWhite,
+                        pointRadius: 2.5,
+                        pointHoverRadius: 5
                     }]
                 },
                 options: {
@@ -139,8 +178,15 @@ async function refreshCharts() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#6e6456' }, grid: { color: 'rgba(184, 172, 148, 0.3)' } },
-                        y: { beginAtZero: true, ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#6e6456' }, grid: { color: 'rgba(184, 172, 148, 0.3)' } }
+                        x: {
+                            ticks: { font: { family: 'JetBrains Mono', size: 9 }, color: ntTickColor },
+                            grid: { color: ntGridColor }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { family: 'JetBrains Mono', size: 9 }, color: ntTickColor },
+                            grid: { color: ntGridColor }
+                        }
                     }
                 }
             });
@@ -152,9 +198,10 @@ async function refreshCharts() {
                     datasets: [{
                         label: "Alerts",
                         data: attackValues.length ? attackValues : [0, 0],
-                        backgroundColor: [rustColor, amberColor],
+                        backgroundColor: [ntRed, ntDarkGray],
                         borderWidth: 1,
-                        borderColor: "#efe7d8"
+                        borderColor: ntSurfaceBorder,
+                        borderRadius: 4
                     }]
                 },
                 options: {
@@ -162,8 +209,15 @@ async function refreshCharts() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#6e6456' }, grid: { color: 'rgba(184, 172, 148, 0.3)' } },
-                        y: { beginAtZero: true, ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#6e6456' }, grid: { color: 'rgba(184, 172, 148, 0.3)' } }
+                        x: {
+                            ticks: { font: { family: 'JetBrains Mono', size: 9 }, color: ntTickColor },
+                            grid: { color: ntGridColor }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { font: { family: 'JetBrains Mono', size: 9 }, color: ntTickColor },
+                            grid: { color: ntGridColor }
+                        }
                     }
                 }
             });
@@ -193,15 +247,13 @@ async function refreshLiveTable() {
         const rows = await response.json();
         table.innerHTML = rows.length ? rows.map((row) => `
             <tr>
-                <td>${row.timestamp}</td>
-                <td>${row.source_ip}:${row.source_port}</td>
-                <td>${row.destination_ip}:${row.destination_port}</td>
-                <td>${row.protocol}</td>
-                <td>${row.packet_count}</td>
-                <td>${row.byte_count}</td>
-                <td>
-                    ${row.prediction === 'ATTACK' ? '<span class="badge-attack">ATTACK</span>' : '<span class="badge-benign">BENIGN</span>'}
-                </td>
+                <td>${escapeHtml(row.timestamp)}</td>
+                <td>${escapeHtml(row.source_ip)}:${escapeHtml(row.source_port)}</td>
+                <td>${escapeHtml(row.destination_ip)}:${escapeHtml(row.destination_port)}</td>
+                <td>${escapeHtml(row.protocol)}</td>
+                <td>${escapeHtml(row.packet_count)}</td>
+                <td>${escapeHtml(row.byte_count)}</td>
+                <td>${predictionBadge(row.prediction)}</td>
                 <td>${confidenceText(row.confidence)}</td>
             </tr>`).join("") : '<tr><td colspan="8" class="text-center text-muted py-4">-- NO TRAFFIC RECORDS AVAILABLE --</td></tr>';
     } catch (err) {
@@ -216,18 +268,22 @@ async function refreshAlertsTable() {
     try {
         const response = await fetch("/api/alerts");
         const rows = await response.json();
-        table.innerHTML = rows.length ? rows.map((row) => `
+        table.innerHTML = rows.length ? rows.map((row) => {
+            const isHigh = row.severity === 'HIGH';
+            const severityBadge = isHigh
+                ? '<span class="badge-severity-high">HIGH</span>'
+                : '<span class="badge-severity-medium">MEDIUM</span>';
+            return `
             <tr>
-                <td>${row.timestamp}</td>
-                <td>${row.source_ip}</td>
-                <td>${row.destination_ip}</td>
-                <td><span class="badge-attack">${row.attack_type}</span></td>
+                <td>${escapeHtml(row.timestamp)}</td>
+                <td>${escapeHtml(row.source_ip)}</td>
+                <td>${escapeHtml(row.destination_ip)}</td>
+                <td><span class="badge-attack">${escapeHtml(row.attack_type)}</span></td>
                 <td>${confidenceText(row.confidence)}</td>
-                <td>
-                    ${row.severity === 'HIGH' ? '<span class="badge-severity-high">HIGH</span>' : '<span class="badge-severity-medium">MEDIUM</span>'}
-                </td>
-                <td><span class="mono-font text-uppercase">${row.status}</span></td>
-            </tr>`).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
+                <td>${severityBadge}</td>
+                <td><span class="mono-font text-uppercase">${escapeHtml(row.status)}</span></td>
+            </tr>`;
+        }).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
     } catch (err) {
         console.error("Error refreshing alerts table:", err);
     }
@@ -243,15 +299,13 @@ async function refreshDashboardTables() {
             const rows = (await response.json()).slice(0, 8);
             trafficTable.innerHTML = rows.length ? rows.map((row) => `
                 <tr>
-                    <td>${row.timestamp}</td>
-                    <td>${row.source_ip}</td>
-                    <td>${row.destination_ip}</td>
-                    <td>${row.protocol}</td>
-                    <td>${row.packet_count}</td>
-                    <td>${row.byte_count}</td>
-                    <td>
-                        ${row.prediction === 'ATTACK' ? '<span class="badge-attack">ATTACK</span>' : '<span class="badge-benign">BENIGN</span>'}
-                    </td>
+                    <td>${escapeHtml(row.timestamp)}</td>
+                    <td>${escapeHtml(row.source_ip)}</td>
+                    <td>${escapeHtml(row.destination_ip)}</td>
+                    <td>${escapeHtml(row.protocol)}</td>
+                    <td>${escapeHtml(row.packet_count)}</td>
+                    <td>${escapeHtml(row.byte_count)}</td>
+                    <td>${predictionBadge(row.prediction)}</td>
                 </tr>
             `).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO TRAFFIC DATA AVAILABLE --</td></tr>';
         } catch (err) {
@@ -263,17 +317,21 @@ async function refreshDashboardTables() {
         try {
             const response = await fetch("/api/alerts");
             const rows = (await response.json()).slice(0, 8);
-            alertsTable.innerHTML = rows.length ? rows.map((row) => `
+            alertsTable.innerHTML = rows.length ? rows.map((row) => {
+                const isHigh = row.severity === 'HIGH';
+                const severityBadge = isHigh
+                    ? '<span class="badge-severity-high">HIGH</span>'
+                    : '<span class="badge-severity-medium">MEDIUM</span>';
+                return `
                 <tr>
-                    <td>${row.timestamp}</td>
-                    <td>${row.source_ip}</td>
-                    <td>${row.attack_type}</td>
-                    <td>
-                        ${row.severity === 'HIGH' ? '<span class="badge-severity-high">HIGH</span>' : '<span class="badge-severity-medium">MEDIUM</span>'}
-                    </td>
-                    <td><span class="mono-font text-uppercase">${row.status}</span></td>
+                    <td>${escapeHtml(row.timestamp)}</td>
+                    <td>${escapeHtml(row.source_ip)}</td>
+                    <td>${escapeHtml(row.attack_type)}</td>
+                    <td>${severityBadge}</td>
+                    <td><span class="mono-font text-uppercase">${escapeHtml(row.status)}</span></td>
                 </tr>
-            `).join("") : '<tr><td colspan="5" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
+            `;
+            }).join("") : '<tr><td colspan="5" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
         } catch (err) {
             console.error("Error refreshing dashboard alerts table:", err);
         }
@@ -281,14 +339,32 @@ async function refreshDashboardTables() {
 }
 
 async function refreshPage() {
-    await Promise.all([
-        refreshStatus(),
-        refreshSummary(),
-        refreshCharts(),
-        refreshLiveTable(),
-        refreshAlertsTable(),
-        refreshDashboardTables()
-    ]);
+    const tasks = [refreshStatus()];
+
+    // Summary & Charts only exist on Dashboard
+    if (document.getElementById("totalPackets")) {
+        tasks.push(refreshSummary());
+    }
+    if (document.getElementById("benignAttackChart")) {
+        tasks.push(refreshCharts());
+    }
+
+    // Live traffic table only exists on /live
+    if (document.getElementById("liveTrafficTable")) {
+        tasks.push(refreshLiveTable());
+    }
+
+    // Alerts table only exists on /alerts
+    if (document.getElementById("alertsTable")) {
+        tasks.push(refreshAlertsTable());
+    }
+
+    // Dashboard preview tables only exist on Dashboard
+    if (document.getElementById("recentTrafficTable") || document.getElementById("recentAlertsTable")) {
+        tasks.push(refreshDashboardTables());
+    }
+
+    await Promise.all(tasks);
 }
 
 // Initial calls

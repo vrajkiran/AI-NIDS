@@ -38,7 +38,7 @@ from ml.preprocess import (
 )
 
 
-def build_evaluation_text(y_test, y_pred) -> str:
+def build_evaluation_text(y_test, y_pred, class_names: list[str]) -> str:
     """Create readable evaluation output from real test data predictions."""
     from sklearn.metrics import (
         accuracy_score,
@@ -49,18 +49,26 @@ def build_evaluation_text(y_test, y_pred) -> str:
         recall_score,
     )
 
+    labels = list(range(len(class_names)))
     accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, zero_division=0)
-    recall = recall_score(y_test, y_pred, zero_division=0)
-    f1 = f1_score(y_test, y_pred, zero_division=0)
-    matrix = confusion_matrix(y_test, y_pred, labels=[0, 1])
+    precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
+    recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
+    f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+    matrix = confusion_matrix(y_test, y_pred, labels=labels)
     report = classification_report(
         y_test,
         y_pred,
-        labels=[0, 1],
-        target_names=["BENIGN", "ATTACK"],
+        labels=labels,
+        target_names=class_names,
         zero_division=0,
     )
+
+    col_headers = "".join(f"{('Pred ' + name):>16}" for name in class_names)
+    matrix_lines = [f"{'':20}{col_headers}"]
+    for idx, name in enumerate(class_names):
+        row_values = "".join(f"{matrix[idx][c]:16d}" for c in range(len(class_names)))
+        matrix_lines.append(f"{('Actual ' + name):20}{row_values}")
+    matrix_text = "\n".join(matrix_lines)
 
     return f"""Model Evaluation Results
 ========================
@@ -73,9 +81,7 @@ F1-score:  {f1:.4f}
 Confusion Matrix
 Rows = Actual, Columns = Predicted
 
-              Pred BENIGN  Pred ATTACK
-Actual BENIGN  {matrix[0][0]:11d}  {matrix[0][1]:11d}
-Actual ATTACK  {matrix[1][0]:11d}  {matrix[1][1]:11d}
+{matrix_text}
 
 Classification Report
 {report}
@@ -101,13 +107,16 @@ def save_feature_compatibility(model_dir: Path) -> None:
 def train(data_path: Path) -> None:
     """Load CICIDS2017 data, clean it, train Random Forest, and save outputs."""
     raw_data = load_csv_files(data_path)
-    cleaned_data = clean_dataset(raw_data)
+    cleaned_data, label_to_id, id_to_label = clean_dataset(raw_data)
+    class_names = [id_to_label[i] for i in range(len(id_to_label))]
     x, y = split_features_and_label(cleaned_data)
 
     # scikit-learn is imported after CSV loading so missing local data gives a
     # clear beginner-friendly message before any ML dependency is needed.
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import train_test_split
+    from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+    import json
 
     x_train, x_test, y_train, y_test = train_test_split(
         x,
@@ -125,12 +134,12 @@ def train(data_path: Path) -> None:
         n_estimators=100,
         random_state=42,
         class_weight="balanced",
-        n_jobs=-1,
+        n_jobs=1,
     )
     model.fit(x_train_clean, y_train)
 
     y_pred = model.predict(x_test_clean)
-    evaluation_text = build_evaluation_text(y_test, y_pred)
+    evaluation_text = build_evaluation_text(y_test, y_pred, class_names)
     print(evaluation_text)
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -140,12 +149,27 @@ def train(data_path: Path) -> None:
         {
             "imputer": imputer,
             "missing_value_strategy": "median",
-            "label_mapping": {"BENIGN": 0, "ATTACK": 1},
+            "label_mapping": label_to_id,
+            "inverse_label_mapping": id_to_label,
             "selected_features": SELECTED_FEATURES,
+            "classes": class_names,
         },
         PREPROCESSOR_PATH,
     )
     EVALUATION_PATH.write_text(evaluation_text, encoding="utf-8")
+
+    # Also save structured JSON for web UI rendering
+    labels = list(range(len(class_names)))
+    matrix = confusion_matrix(y_test, y_pred, labels=labels)
+    eval_json = {
+        "accuracy": f"{accuracy_score(y_test, y_pred):.4f}",
+        "precision": f"{precision_score(y_test, y_pred, average='weighted', zero_division=0):.4f}",
+        "recall": f"{recall_score(y_test, y_pred, average='weighted', zero_division=0):.4f}",
+        "f1_score": f"{f1_score(y_test, y_pred, average='weighted', zero_division=0):.4f}",
+        "classes": class_names,
+        "matrix": matrix.tolist(),
+    }
+    (MODEL_PATH.parent / "evaluation_results.json").write_text(json.dumps(eval_json, indent=2), encoding="utf-8")
     save_feature_compatibility(MODEL_PATH.parent)
 
     print("Saved model: " + safe_text(MODEL_PATH))

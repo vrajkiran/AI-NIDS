@@ -40,8 +40,12 @@
                     <td>
                         {% if row.prediction == 'ATTACK' %}
                             <span class="badge-attack">ATTACK</span>
-                        {% else %}
+                        {% elif row.prediction == 'BENIGN' %}
                             <span class="badge-benign">BENIGN</span>
+                        {% elif row.prediction == 'PENDING' %}
+                            <span class="badge-pending">PENDING</span>
+                        {% else %}
+                            <span class="badge-error">{{ row.prediction }}</span>
                         {% endif %}
                     </td>
                     <td>{{ "%.4f"|format(row.confidence) if row.confidence is not none else "N/A" }}</td>

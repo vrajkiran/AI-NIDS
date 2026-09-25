@@ -55,7 +55,6 @@ class PacketCapture:
         self.predictor = None
         self.packet_count = 0
         self.prediction_count = 0
-        self.packet_metadata = []
         self.flows = {}
         self.stop_event = threading.Event()
         self.error_message = ""
@@ -96,8 +95,7 @@ class PacketCapture:
             return
 
         self.packet_count += 1
-        self.packet_metadata.append(metadata)
-        logging.info("Packet captured: %s", metadata)
+        logging.debug("Packet captured: %s", metadata)
 
         flow, created = self._update_flow(metadata)
         if created:
@@ -111,29 +109,65 @@ class PacketCapture:
                 f"{metadata['protocol_name']} length={metadata['packet_length']}"
             )
 
-        result = {"prediction": "PENDING", "confidence": None, "severity": "No alert"}
-        if self.predictor is not None:
-            try:
-                features = flow.to_ml_features()
-                logging.info("Features extracted: %s", features)
-                result = self.predictor.predict(features)
-                self.prediction_count += 1
-                logging.info("Prediction generated: %s", result)
-                print(
-                    f"Prediction: {result['prediction']} "
-                    f"confidence={result['confidence']} severity={result['severity']}"
-                )
-            except ValueError as error:
-                self.error_message = "Invalid flow features: " + str(error)
-                logging.error(self.error_message)
-                result = {"prediction": "ERROR", "confidence": None, "severity": "No alert"}
-            except Exception as error:
-                self.error_message = "Prediction error: " + str(error)
-                logging.exception(self.error_message)
-                result = {"prediction": "ERROR", "confidence": None, "severity": "No alert"}
+        # Immediate alert detection: check on creation or every 25 packets
+        if (created or (flow.total_packets % 25 == 0)) and self.predictor is not None:
+            result = self.evaluate_flow(flow)
+            if result.get("prediction") == "ATTACK" and not flow.alert_emitted:
+                flow.alert_emitted = True
+                if self.on_detection is not None:
+                    self.on_detection(metadata, flow, result)
 
-        if self.on_detection is not None:
-            self.on_detection(metadata, flow, result)
+        # Periodically prune idle expired flows to bound memory
+        if self.packet_count % 20 == 0:
+            self.prune_expired_flows(metadata["timestamp"])
+
+    def evaluate_flow(self, flow: Flow) -> dict:
+        """Generate prediction for a flow."""
+        if self.predictor is None:
+            return {"prediction": "PENDING", "confidence": None, "severity": "No alert"}
+
+        try:
+            features = flow.to_ml_features()
+            logging.debug("Features extracted: %s", features)
+            result = self.predictor.predict(features)
+            self.prediction_count += 1
+            logging.debug("Prediction generated: %s", result)
+            return result
+        except ValueError as error:
+            self.error_message = "Invalid flow features: " + str(error)
+            logging.error(self.error_message)
+            return {"prediction": "ERROR", "confidence": None, "severity": "No alert"}
+        except Exception as error:
+            self.error_message = "Prediction error: " + str(error)
+            logging.exception(self.error_message)
+            return {"prediction": "ERROR", "confidence": None, "severity": "No alert"}
+
+    def finalize_flow(self, flow: Flow, is_final: bool = True) -> None:
+        """Predict and notify flow detection to persistent storage."""
+        if flow.is_finalized:
+            return
+        result = self.evaluate_flow(flow)
+        if is_final:
+            flow.is_finalized = True
+        if self.on_detection is not None and flow.last_metadata is not None:
+            self.on_detection(flow.last_metadata, flow, result)
+
+    def prune_expired_flows(self, current_time: float) -> None:
+        """Finalize and purge flows that have been idle past timeout."""
+        expired_keys = [
+            k for k, f in self.flows.items()
+            if f.is_expired(current_time) and not f.is_finalized
+        ]
+        for key in expired_keys:
+            flow = self.flows[key]
+            self.finalize_flow(flow, is_final=True)
+            del self.flows[key]
+
+    def finalize_all_flows(self) -> None:
+        """Finalize all remaining active flows when capture halts."""
+        for flow in list(self.flows.values()):
+            if not flow.is_finalized:
+                self.finalize_flow(flow, is_final=True)
 
     def _update_flow(self, metadata: dict) -> tuple[Flow, bool]:
         """Add packet metadata to a forward or reverse flow."""
@@ -161,6 +195,7 @@ class PacketCapture:
             metadata["source_ip"],
             metadata["source_port"],
             metadata["packet_length"],
+            metadata=metadata,
         )
         return flow, created
 
@@ -219,6 +254,7 @@ class PacketCapture:
                 self.enabled = False
                 return
 
+        self.finalize_all_flows()
         self.enabled = False
         print("Packet capture completed.")
         print(f"Packets captured: {self.packet_count}")

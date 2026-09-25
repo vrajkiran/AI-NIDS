@@ -20,6 +20,8 @@ class Endpoint:
 class Flow:
     """Track simple flow statistics that match selected CICIDS2017 features."""
 
+    DEFAULT_IDLE_TIMEOUT = 15.0
+
     def __init__(self, source_ip: str, destination_ip: str, source_port: int, destination_port: int, protocol: int):
         self.source = Endpoint(source_ip, source_port)
         self.destination = Endpoint(destination_ip, destination_port)
@@ -27,11 +29,14 @@ class Flow:
 
         self.start_time = None
         self.last_time = None
+        self.last_metadata = None
 
         self.forward_packet_count = 0
         self.backward_packet_count = 0
         self.forward_byte_count = 0
         self.backward_byte_count = 0
+        self.is_finalized = False
+        self.alert_emitted = False
 
     def matches_reverse(self, source_ip: str, destination_ip: str, source_port: int, destination_port: int, protocol: int) -> bool:
         """Return True if a packet is the reverse direction of this flow."""
@@ -43,12 +48,14 @@ class Flow:
             and self.protocol == protocol
         )
 
-    def add_packet(self, timestamp: float, source_ip: str, source_port: int, packet_length: int) -> None:
+    def add_packet(self, timestamp: float, source_ip: str, source_port: int, packet_length: int, metadata: dict | None = None) -> None:
         """Update flow counters using packet metadata only."""
         if self.start_time is None:
             self.start_time = timestamp
 
         self.last_time = timestamp
+        if metadata is not None:
+            self.last_metadata = metadata
 
         is_forward = source_ip == self.source.ip and source_port == self.source.port
         if is_forward:
@@ -57,6 +64,12 @@ class Flow:
         else:
             self.backward_packet_count += 1
             self.backward_byte_count += packet_length
+
+    def is_expired(self, current_time: float, timeout: float = DEFAULT_IDLE_TIMEOUT) -> bool:
+        """Return True if no packets have been observed for longer than timeout seconds."""
+        if self.last_time is None:
+            return False
+        return (current_time - self.last_time) >= timeout
 
     @property
     def total_packets(self) -> int:
@@ -81,7 +94,6 @@ class Flow:
 
         return {
             "Destination Port": self.destination.port,
-            "Protocol": self.protocol,
             "Flow Duration": duration_microseconds,
             "Total Fwd Packets": self.forward_packet_count,
             "Total Backward Packets": self.backward_packet_count,
