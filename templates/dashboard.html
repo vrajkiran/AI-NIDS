@@ -235,6 +235,7 @@
                             <th>TYPE</th>
                             <th>SEVERITY</th>
                             <th>STATUS</th>
+                            <th class="text-end">ACTION</th>
                         </tr>
                     </thead>
                     <tbody id="recentAlertsTable">
@@ -250,10 +251,23 @@
                                     <span class="badge-severity-medium">MEDIUM</span>
                                 {% endif %}
                             </td>
-                            <td><span class="mono-font text-uppercase">{{ alert.status }}</span></td>
+                            <td>
+                                {% if alert.status == 'OPEN' %}
+                                    <span class="badge-status-open">OPEN</span>
+                                {% else %}
+                                    <span class="badge-status-resolved">RESOLVED</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if alert.status == 'OPEN' %}
+                                    <button class="btn-resolve" onclick="resolveAlert({{ alert.id }})">RESOLVE</button>
+                                {% else %}
+                                    <span class="text-muted small">--</span>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% else %}
-                        <tr><td colspan="5" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

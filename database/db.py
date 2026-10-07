@@ -200,6 +200,27 @@ def fetch_latest_alerts(database_path: Path, limit: int = 100) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def resolve_alert(database_path: Path, alert_id: int) -> bool:
+    """Mark an alert as RESOLVED."""
+    with get_connection(database_path) as connection:
+        cursor = connection.execute(
+            "UPDATE alerts SET status = 'RESOLVED' WHERE id = ?",
+            (alert_id,),
+        )
+        connection.commit()
+        return cursor.rowcount > 0
+
+
+def resolve_all_alerts(database_path: Path) -> int:
+    """Mark all currently OPEN alerts as RESOLVED."""
+    with get_connection(database_path) as connection:
+        cursor = connection.execute(
+            "UPDATE alerts SET status = 'RESOLVED' WHERE status = 'OPEN'"
+        )
+        connection.commit()
+        return cursor.rowcount
+
+
 def get_dashboard_summary(database_path: Path) -> dict:
     with get_connection(database_path) as connection:
         row = connection.execute(

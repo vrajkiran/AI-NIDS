@@ -818,3 +818,107 @@ h1, h2, h3, h4, h5, h6, .tech-font {
     letter-spacing: 0.06em;
     padding: 4px 10px;
 }
+
+/* ==========================================================================
+   INTERACTIVE TOOLBAR, SEARCH, AND ACTION BUTTONS
+   ========================================================================== */
+.table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.table-search-input {
+    background-color: var(--nt-surface-2);
+    border: 1px solid var(--nt-border);
+    border-radius: var(--radius-sm);
+    color: var(--nt-white);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 7px 14px;
+    min-width: 260px;
+    flex-grow: 1;
+    max-width: 440px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.table-search-input:focus {
+    border-color: var(--nt-white);
+}
+
+.btn-export {
+    background-color: var(--nt-surface-2);
+    border: 1px solid var(--nt-border);
+    border-radius: var(--radius-sm);
+    color: var(--nt-white);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 7px 14px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.btn-export:hover {
+    background-color: var(--nt-surface-3);
+    border-color: var(--nt-border-light);
+    color: var(--nt-white);
+}
+
+.btn-resolve {
+    background: transparent;
+    border: 1px solid var(--nt-border);
+    color: var(--nt-gray-300);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-resolve:hover {
+    border-color: var(--nt-white);
+    color: var(--nt-white);
+    background-color: var(--nt-surface-3);
+}
+
+.btn-resolve-all {
+    background-color: var(--nt-surface-2);
+    border: 1px solid var(--nt-border);
+    color: var(--nt-gray-100);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-resolve-all:hover {
+    background-color: var(--nt-surface-3);
+    border-color: var(--nt-border-light);
+    color: var(--nt-white);
+}
+
+.badge-status-open {
+    color: var(--nt-red);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-status-resolved {
+    color: var(--nt-gray-500);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}

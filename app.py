@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 import re
 import threading
 from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, url_for
 
 from config import CAPTURE_DURATION, DATABASE_PATH, EVALUATION_PATH, HOST, NETWORK_INTERFACE, PORT, SECRET_KEY
 from database.db import (
@@ -19,6 +21,8 @@ from database.db import (
     has_demo_data,
     insert_alert,
     insert_network_traffic,
+    resolve_alert,
+    resolve_all_alerts,
     seed_demo_data,
 )
 from network.packet_capture import PacketCapture, get_interface_names
@@ -288,7 +292,15 @@ def clear_demo():
 
 @app.route("/api/status")
 def api_status():
-    return jsonify(monitor_status)
+    status_copy = dict(monitor_status)
+    with monitor_lock:
+        if monitor_capture is not None and monitor_status["active"]:
+            status_copy["packet_count"] = monitor_capture.packet_count
+            status_copy["flow_count"] = len(monitor_capture.flows)
+        else:
+            status_copy["packet_count"] = 0
+            status_copy["flow_count"] = 0
+    return jsonify(status_copy)
 
 
 @app.route("/api/summary")
@@ -308,6 +320,66 @@ def api_live():
 @app.route("/api/alerts")
 def api_alerts():
     return jsonify(fetch_latest_alerts(DATABASE_PATH, 50))
+
+
+@app.route("/api/alerts/<int:alert_id>/resolve", methods=["POST"])
+def api_resolve_alert(alert_id: int):
+    success = resolve_alert(DATABASE_PATH, alert_id)
+    return jsonify({"success": success, "alert_id": alert_id})
+
+
+@app.route("/api/alerts/resolve-all", methods=["POST"])
+def api_resolve_all_alerts():
+    count = resolve_all_alerts(DATABASE_PATH)
+    return jsonify({"success": True, "resolved_count": count})
+
+
+@app.route("/export/traffic")
+def export_traffic():
+    traffic_rows = fetch_latest_traffic(DATABASE_PATH, limit=10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Timestamp", "Source IP", "Destination IP", "Source Port",
+        "Destination Port", "Protocol", "Packet Count", "Byte Count",
+        "Prediction", "Confidence", "Data Source"
+    ])
+    for row in traffic_rows:
+        writer.writerow([
+            row["id"], row["timestamp"], row["source_ip"], row["destination_ip"],
+            row["source_port"], row["destination_port"], row["protocol"],
+            row["packet_count"], row["byte_count"], row["prediction"],
+            row["confidence"], row["data_source"]
+        ])
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ai_nids_traffic.csv"},
+    )
+
+
+@app.route("/export/alerts")
+def export_alerts():
+    alert_rows = fetch_latest_alerts(DATABASE_PATH, limit=10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Timestamp", "Source IP", "Destination IP",
+        "Attack Type", "Confidence", "Severity", "Status", "Data Source"
+    ])
+    for row in alert_rows:
+        writer.writerow([
+            row["id"], row["timestamp"], row["source_ip"], row["destination_ip"],
+            row["attack_type"], row["confidence"], row["severity"],
+            row["status"], row["data_source"]
+        ])
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ai_nids_alerts.csv"},
+    )
 
 
 @app.route("/api/charts")

@@ -60,6 +60,32 @@ class TestAppRoutes(unittest.TestCase):
         summary_seeded = get_dashboard_summary(DATABASE_PATH)
         self.assertTrue(summary_seeded["has_demo_data"])
 
+    def test_csv_export_endpoints(self):
+        traffic_resp = self.client.get("/export/traffic")
+        self.assertEqual(traffic_resp.status_code, 200)
+        self.assertEqual(traffic_resp.mimetype, "text/csv")
+        self.assertIn("Timestamp", traffic_resp.get_data(as_text=True))
+
+        alerts_resp = self.client.get("/export/alerts")
+        self.assertEqual(alerts_resp.status_code, 200)
+        self.assertEqual(alerts_resp.mimetype, "text/csv")
+        self.assertIn("Attack Type", alerts_resp.get_data(as_text=True))
+
+    def test_alert_resolution_endpoints(self):
+        seed_demo_data(DATABASE_PATH)
+        # Test resolve single alert
+        resp = self.client.post("/api/alerts/1/resolve")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("success", data)
+
+        # Test resolve all alerts
+        resp_all = self.client.post("/api/alerts/resolve-all")
+        self.assertEqual(resp_all.status_code, 200)
+        data_all = resp_all.get_json()
+        self.assertTrue(data_all["success"])
+        self.assertIn("resolved_count", data_all)
+
 
 if __name__ == "__main__":
     unittest.main()

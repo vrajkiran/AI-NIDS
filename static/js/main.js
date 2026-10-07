@@ -72,14 +72,15 @@ async function refreshStatus() {
         const response = await fetch("/api/status");
         const status = await response.json();
         
-        statusElement.textContent = status.active ? "MONITORING ACTIVE" : "MONITORING STOPPED";
+        const countText = (status.active && status.packet_count > 0) ? ` (${status.packet_count} PKTS)` : "";
+        statusElement.textContent = status.active ? `MONITORING ACTIVE${countText}` : "MONITORING STOPPED";
         if (statusDot) {
             statusDot.className = status.active ? "status-dot active" : "status-dot stopped";
         }
         if (messageElement) messageElement.textContent = status.message || "";
         if (errorElement) errorElement.textContent = status.error ? `⚠ ${status.error}` : "";
         if (logElement && status.message) {
-            logElement.textContent = status.active ? `[ACTIVE] ${status.message}` : `[IDLE] ${status.message}`;
+            logElement.textContent = status.active ? `[ACTIVE] ${status.message}${countText}` : `[IDLE] ${status.message}`;
         }
     } catch (err) {
         console.error("Error refreshing status:", err);
@@ -247,6 +248,53 @@ async function refreshCharts() {
     }
 }
 
+let trafficSearchFilter = "";
+let alertsSearchFilter = "";
+
+function bindSearchInputs() {
+    const trafficInput = document.getElementById("trafficSearchInput");
+    if (trafficInput && !trafficInput.dataset.bound) {
+        trafficInput.dataset.bound = "true";
+        trafficInput.addEventListener("input", (e) => {
+            trafficSearchFilter = e.target.value.toLowerCase().trim();
+            refreshLiveTable();
+        });
+    }
+
+    const alertsInput = document.getElementById("alertsSearchInput");
+    if (alertsInput && !alertsInput.dataset.bound) {
+        alertsInput.dataset.bound = "true";
+        alertsInput.addEventListener("input", (e) => {
+            alertsSearchFilter = e.target.value.toLowerCase().trim();
+            refreshAlertsTable();
+        });
+    }
+}
+
+async function resolveAlert(alertId) {
+    try {
+        const response = await fetch(`/api/alerts/${alertId}/resolve`, { method: "POST" });
+        const res = await response.json();
+        if (res.success) {
+            await refreshPage();
+        }
+    } catch (err) {
+        console.error("Error resolving alert:", err);
+    }
+}
+
+async function resolveAllAlerts() {
+    try {
+        const response = await fetch("/api/alerts/resolve-all", { method: "POST" });
+        const res = await response.json();
+        if (res.success) {
+            await refreshPage();
+        }
+    } catch (err) {
+        console.error("Error resolving all alerts:", err);
+    }
+}
+
 async function refreshLiveTable() {
     const table = document.getElementById("liveTrafficTable");
     if (!table) return;
@@ -254,7 +302,19 @@ async function refreshLiveTable() {
     try {
         const response = await fetch("/api/live");
         const rows = await response.json();
-        table.innerHTML = rows.length ? rows.map((row) => `
+        let displayRows = rows;
+        if (trafficSearchFilter) {
+            displayRows = rows.filter((r) =>
+                (r.source_ip && r.source_ip.toLowerCase().includes(trafficSearchFilter)) ||
+                (r.destination_ip && r.destination_ip.toLowerCase().includes(trafficSearchFilter)) ||
+                (String(r.source_port).includes(trafficSearchFilter)) ||
+                (String(r.destination_port).includes(trafficSearchFilter)) ||
+                (r.protocol && r.protocol.toLowerCase().includes(trafficSearchFilter)) ||
+                (r.prediction && r.prediction.toLowerCase().includes(trafficSearchFilter))
+            );
+        }
+
+        table.innerHTML = displayRows.length ? displayRows.map((row) => `
             <tr>
                 <td>${escapeHtml(row.timestamp)}</td>
                 <td>${escapeHtml(row.source_ip)}:${escapeHtml(row.source_port)}</td>
@@ -264,7 +324,7 @@ async function refreshLiveTable() {
                 <td>${escapeHtml(row.byte_count)}</td>
                 <td>${predictionBadge(row.prediction)}</td>
                 <td>${confidenceText(row.confidence)}</td>
-            </tr>`).join("") : '<tr><td colspan="8" class="text-center text-muted py-4">-- NO TRAFFIC RECORDS AVAILABLE --</td></tr>';
+            </tr>`).join("") : '<tr><td colspan="8" class="text-center text-muted py-4">-- NO TRAFFIC RECORDS MATCH FILTER --</td></tr>';
     } catch (err) {
         console.error("Error refreshing live table:", err);
     }
@@ -277,11 +337,30 @@ async function refreshAlertsTable() {
     try {
         const response = await fetch("/api/alerts");
         const rows = await response.json();
-        table.innerHTML = rows.length ? rows.map((row) => {
+        let displayRows = rows;
+        if (alertsSearchFilter) {
+            displayRows = rows.filter((r) =>
+                (r.source_ip && r.source_ip.toLowerCase().includes(alertsSearchFilter)) ||
+                (r.destination_ip && r.destination_ip.toLowerCase().includes(alertsSearchFilter)) ||
+                (r.attack_type && r.attack_type.toLowerCase().includes(alertsSearchFilter)) ||
+                (r.severity && r.severity.toLowerCase().includes(alertsSearchFilter)) ||
+                (r.status && r.status.toLowerCase().includes(alertsSearchFilter))
+            );
+        }
+
+        table.innerHTML = displayRows.length ? displayRows.map((row) => {
             const isHigh = row.severity === 'HIGH';
             const severityBadge = isHigh
                 ? '<span class="badge-severity-high">HIGH</span>'
                 : '<span class="badge-severity-medium">MEDIUM</span>';
+            const isOpen = row.status === 'OPEN';
+            const statusBadge = isOpen
+                ? '<span class="badge-status-open">OPEN</span>'
+                : '<span class="badge-status-resolved">RESOLVED</span>';
+            const actionButton = isOpen
+                ? `<button class="btn-resolve" onclick="resolveAlert(${row.id})">RESOLVE</button>`
+                : '<span class="text-muted small">--</span>';
+
             return `
             <tr>
                 <td>${escapeHtml(row.timestamp)}</td>
@@ -290,9 +369,10 @@ async function refreshAlertsTable() {
                 <td><span class="badge-attack">${escapeHtml(row.attack_type)}</span></td>
                 <td>${confidenceText(row.confidence)}</td>
                 <td>${severityBadge}</td>
-                <td><span class="mono-font text-uppercase">${escapeHtml(row.status)}</span></td>
+                <td>${statusBadge}</td>
+                <td class="text-end">${actionButton}</td>
             </tr>`;
-        }).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
+        }).join("") : '<tr><td colspan="8" class="text-center text-muted py-4">-- NO ALERTS MATCH FILTER --</td></tr>';
     } catch (err) {
         console.error("Error refreshing alerts table:", err);
     }
@@ -331,16 +411,25 @@ async function refreshDashboardTables() {
                 const severityBadge = isHigh
                     ? '<span class="badge-severity-high">HIGH</span>'
                     : '<span class="badge-severity-medium">MEDIUM</span>';
+                const isOpen = row.status === 'OPEN';
+                const statusBadge = isOpen
+                    ? '<span class="badge-status-open">OPEN</span>'
+                    : '<span class="badge-status-resolved">RESOLVED</span>';
+                const actionButton = isOpen
+                    ? `<button class="btn-resolve" onclick="resolveAlert(${row.id})">RESOLVE</button>`
+                    : '<span class="text-muted small">--</span>';
+
                 return `
                 <tr>
                     <td>${escapeHtml(row.timestamp)}</td>
                     <td>${escapeHtml(row.source_ip)}</td>
                     <td>${escapeHtml(row.attack_type)}</td>
                     <td>${severityBadge}</td>
-                    <td><span class="mono-font text-uppercase">${escapeHtml(row.status)}</span></td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end">${actionButton}</td>
                 </tr>
             `;
-            }).join("") : '<tr><td colspan="5" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
+            }).join("") : '<tr><td colspan="6" class="text-center text-muted py-4">-- NO ALERTS FOUND --</td></tr>';
         } catch (err) {
             console.error("Error refreshing dashboard alerts table:", err);
         }
@@ -348,6 +437,7 @@ async function refreshDashboardTables() {
 }
 
 async function refreshPage() {
+    bindSearchInputs();
     const tasks = [refreshStatus()];
 
     // Summary & Charts only exist on Dashboard
@@ -379,5 +469,6 @@ async function refreshPage() {
 // Initial calls
 updateLiveClock();
 setInterval(updateLiveClock, 1000);
+bindSearchInputs();
 refreshPage();
 setInterval(refreshPage, 3000);
