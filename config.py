@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 # Base folder of this project. All project paths are built from here.
@@ -25,8 +26,7 @@ CAPTURE_DURATION = 10
 # Server Configuration
 HOST = "127.0.0.1"
 PORT = 5000
-import os
-SECRET_KEY = os.environ.get("AI_NIDS_SECRET_KEY", "ai-nids-session-secret-key-2026")
+SECRET_KEY = os.environ.get("AI_NIDS_SECRET_KEY") or os.urandom(24).hex()
 
 # Prediction is optional and requires a trained model from: python ml/train.py
 PREDICTION_ENABLED = False

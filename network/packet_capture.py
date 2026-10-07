@@ -14,6 +14,7 @@ import argparse
 import logging
 import sys
 import threading
+import time
 from pathlib import Path
 
 from scapy.all import conf, sniff
@@ -217,14 +218,19 @@ class PacketCapture:
         print("Payload storage: disabled")
         logging.info("Monitoring started on interface=%s duration=%s", self.interface, self.duration)
 
+        start_time = time.time()
+        end_time = start_time + self.duration
+
         try:
-            sniff(
-                iface=self.interface or None,
-                prn=self.handle_packet,
-                timeout=self.duration,
-                store=False,
-                stop_filter=lambda _: self.stop_event.is_set(),
-            )
+            while not self.stop_event.is_set() and time.time() < end_time:
+                step_timeout = max(0.5, min(1.0, end_time - time.time()))
+                sniff(
+                    iface=self.interface or None,
+                    prn=self.handle_packet,
+                    timeout=step_timeout,
+                    store=False,
+                    stop_filter=lambda _: self.stop_event.is_set(),
+                )
         except RuntimeError as error:
             if "winpcap is not installed" not in str(error).lower():
                 self.error_message = "Scapy capture error: " + str(error)
@@ -236,13 +242,15 @@ class PacketCapture:
             try:
                 socket = conf.L3socket(iface=self.interface or None)
                 try:
-                    sniff(
-                        opened_socket=socket,
-                        prn=self.handle_packet,
-                        timeout=self.duration,
-                        store=False,
-                        stop_filter=lambda _: self.stop_event.is_set(),
-                    )
+                    while not self.stop_event.is_set() and time.time() < end_time:
+                        step_timeout = max(0.5, min(1.0, end_time - time.time()))
+                        sniff(
+                            opened_socket=socket,
+                            prn=self.handle_packet,
+                            timeout=step_timeout,
+                            store=False,
+                            stop_filter=lambda _: self.stop_event.is_set(),
+                        )
                 finally:
                     socket.close()
             except OSError as fallback_error:

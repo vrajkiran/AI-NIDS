@@ -2,6 +2,14 @@ let benignAttackChart;
 let trafficTimeChart;
 let attackCountChart;
 
+const THREAT_CATEGORY_COLORS = [
+    "rgba(255, 77, 77, 0.85)",
+    "rgba(255, 193, 7, 0.85)",
+    "rgba(156, 39, 176, 0.85)",
+    "rgba(33, 150, 243, 0.85)",
+    "rgba(76, 175, 80, 0.85)"
+];
+
 function escapeHtml(value) {
     if (value === null || value === undefined) return "";
     return String(value)
@@ -14,14 +22,14 @@ function escapeHtml(value) {
 
 function predictionBadge(prediction) {
     const safe = escapeHtml(prediction);
-    if (prediction === "ATTACK") {
-        return '<span class="badge-attack">ATTACK</span>';
+    if (!prediction || prediction === "PENDING") {
+        return '<span class="badge-pending">PENDING</span>';
     } else if (prediction === "BENIGN") {
         return '<span class="badge-benign">BENIGN</span>';
-    } else if (prediction === "PENDING") {
-        return '<span class="badge-pending">PENDING</span>';
+    } else if (prediction === "ERROR") {
+        return '<span class="badge-error">ERROR</span>';
     } else {
-        return `<span class="badge-error">${safe}</span>`;
+        return `<span class="badge-attack">${safe}</span>`;
     }
 }
 
@@ -191,14 +199,6 @@ async function refreshCharts() {
                 }
             });
 
-            const categoryColors = [
-                "rgba(255, 77, 77, 0.85)",
-                "rgba(255, 193, 7, 0.85)",
-                "rgba(156, 39, 176, 0.85)",
-                "rgba(33, 150, 243, 0.85)",
-                "rgba(76, 175, 80, 0.85)"
-            ];
-
             attackCountChart = new Chart(document.getElementById("attackCountChart"), {
                 type: "bar",
                 data: {
@@ -206,7 +206,7 @@ async function refreshCharts() {
                     datasets: [{
                         label: "Alerts",
                         data: attackValues.length ? attackValues : [0, 0],
-                        backgroundColor: categoryColors,
+                        backgroundColor: THREAT_CATEGORY_COLORS,
                         borderWidth: 1,
                         borderColor: ntSurfaceBorder,
                         borderRadius: 4
@@ -232,20 +232,12 @@ async function refreshCharts() {
             return;
         }
 
-        const categoryColors = [
-            "rgba(255, 77, 77, 0.85)",
-            "rgba(255, 193, 7, 0.85)",
-            "rgba(156, 39, 176, 0.85)",
-            "rgba(33, 150, 243, 0.85)",
-            "rgba(76, 175, 80, 0.85)"
-        ];
-
         benignAttackChart.data.datasets[0].data = benignAttackValues;
         trafficTimeChart.data.labels = timeLabels.length ? timeLabels : ["NOW"];
         trafficTimeChart.data.datasets[0].data = timeValues.length ? timeValues : [0];
         attackCountChart.data.labels = attackLabels.length ? attackLabels : ["DDoS", "PortScan"];
         attackCountChart.data.datasets[0].data = attackValues.length ? attackValues : [0, 0];
-        attackCountChart.data.datasets[0].backgroundColor = categoryColors;
+        attackCountChart.data.datasets[0].backgroundColor = THREAT_CATEGORY_COLORS;
 
         benignAttackChart.update();
         trafficTimeChart.update();

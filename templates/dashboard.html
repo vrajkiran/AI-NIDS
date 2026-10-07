@@ -201,14 +201,14 @@
                             <td>{{ row.packet_count }}</td>
                             <td>{{ row.byte_count }}</td>
                             <td>
-                                {% if row.prediction == 'ATTACK' %}
-                                    <span class="badge-attack">ATTACK</span>
-                                {% elif row.prediction == 'BENIGN' %}
+                                {% if row.prediction == 'BENIGN' %}
                                     <span class="badge-benign">BENIGN</span>
                                 {% elif row.prediction == 'PENDING' %}
                                     <span class="badge-pending">PENDING</span>
+                                {% elif row.prediction == 'ERROR' %}
+                                    <span class="badge-error">ERROR</span>
                                 {% else %}
-                                    <span class="badge-error">{{ row.prediction }}</span>
+                                    <span class="badge-attack">{{ row.prediction }}</span>
                                 {% endif %}
                             </td>
                         </tr>

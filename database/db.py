@@ -15,6 +15,7 @@ def create_database(database_path: Path) -> None:
 
     connection = get_connection(database_path)
     cursor = connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL;")
 
     cursor.execute(
         """

@@ -21,7 +21,10 @@ network_monitor.log
 npcap_installer.exe
 
 # SQLite Database Instance
-database/nids.db
+database/nids.db*
+*.db-wal
+*.db-shm
+.env
 
 # System & Editor Files
 .DS_Store

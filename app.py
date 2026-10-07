@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import threading
@@ -29,10 +30,11 @@ create_database(DATABASE_PATH)
 
 @app.after_request
 def add_no_cache_headers(response):
-    """Ensure browser never caches static files or API responses during development."""
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    """Ensure dynamic endpoints never serve stale data, while allowing static assets to be cached."""
+    if not request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
 monitor_lock = threading.Lock()
@@ -44,6 +46,12 @@ monitor_status = {
     "interface": NETWORK_INTERFACE,
     "error": "",
 }
+
+
+@app.context_processor
+def inject_monitor_status():
+    """Ensure status is universally accessible in all templates without manual passing."""
+    return {"status": monitor_status}
 
 
 def save_detection(metadata: dict, flow, result: dict) -> None:
@@ -146,7 +154,6 @@ def read_model_metrics() -> dict:
         # First, try to load structured JSON evaluation data
         json_path = EVALUATION_PATH.parent / "evaluation_results.json"
         if json_path.exists():
-            import json
             try:
                 data = json.loads(json_path.read_text(encoding="utf-8"))
                 metrics["accuracy"] = data.get("accuracy", "N/A")
@@ -226,7 +233,11 @@ def start_monitoring():
     global monitor_thread
 
     interface = request.form.get("interface", NETWORK_INTERFACE).strip()
-    duration = request.form.get("duration", str(CAPTURE_DURATION), type=int)
+    try:
+        raw_duration = request.form.get("duration", CAPTURE_DURATION)
+        duration = int(raw_duration) if raw_duration is not None else None
+    except (TypeError, ValueError):
+        duration = None
     interfaces = get_interface_names()
 
     if interface and interface not in interfaces:
@@ -302,11 +313,6 @@ def api_alerts():
 @app.route("/api/charts")
 def api_charts():
     return jsonify(get_chart_data(DATABASE_PATH))
-
-
-@app.route("/live-traffic")
-def live_traffic():
-    return redirect(url_for("live"))
 
 
 if __name__ == "__main__":
