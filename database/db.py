@@ -58,6 +58,14 @@ def create_database(database_path: Path) -> None:
         if "data_source" not in columns:
             cursor.execute(f"ALTER TABLE {table} ADD COLUMN data_source TEXT DEFAULT 'REAL'")
 
+    # Performance indexes for polling and analytical queries
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_traffic_prediction ON network_traffic(prediction)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_traffic_timestamp ON network_traffic(timestamp)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_traffic_data_source ON network_traffic(data_source)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_attack_type ON alerts(attack_type)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alerts_data_source ON alerts(data_source)")
+
     connection.commit()
 
     # Seed initial realistic demonstration records if tables are empty
@@ -123,6 +131,15 @@ def clear_demo_data(database_path: Path) -> None:
         connection.execute("DELETE FROM network_traffic WHERE data_source = 'DEMO'")
         connection.execute("DELETE FROM alerts WHERE data_source = 'DEMO'")
         connection.commit()
+
+
+def clear_real_data(database_path: Path) -> dict:
+    """Delete live captured records (data_source != 'DEMO'), leaving DEMO presentation data intact."""
+    with get_connection(database_path) as connection:
+        traffic_deleted = connection.execute("DELETE FROM network_traffic WHERE data_source != 'DEMO'").rowcount
+        alerts_deleted = connection.execute("DELETE FROM alerts WHERE data_source != 'DEMO'").rowcount
+        connection.commit()
+    return {"traffic_deleted": traffic_deleted, "alerts_deleted": alerts_deleted}
 
 
 def has_demo_data(database_path: Path) -> bool:
@@ -221,12 +238,25 @@ def resolve_all_alerts(database_path: Path) -> int:
         return cursor.rowcount
 
 
+def format_byte_size(bytes_count: int) -> str:
+    """Format raw byte counts into human-readable engineering units."""
+    if bytes_count < 1024:
+        return f"{bytes_count} B"
+    elif bytes_count < 1024 * 1024:
+        return f"{bytes_count / 1024:.1f} KB"
+    elif bytes_count < 1024 * 1024 * 1024:
+        return f"{bytes_count / (1024 * 1024):.2f} MB"
+    else:
+        return f"{bytes_count / (1024 * 1024 * 1024):.2f} GB"
+
+
 def get_dashboard_summary(database_path: Path) -> dict:
     with get_connection(database_path) as connection:
         row = connection.execute(
             """
             SELECT
                 COALESCE(SUM(packet_count), 0) AS total_packets,
+                COALESCE(SUM(byte_count), 0) AS total_bytes,
                 COUNT(DISTINCT
                     CASE
                         WHEN (COALESCE(source_ip, '') || '|' || printf('%05d', COALESCE(source_port, 0))) < (COALESCE(destination_ip, '') || '|' || printf('%05d', COALESCE(destination_port, 0)))
@@ -243,8 +273,11 @@ def get_dashboard_summary(database_path: Path) -> dict:
             "SELECT COUNT(*) AS active_alerts FROM alerts WHERE status = 'OPEN'"
         ).fetchone()
 
+    total_bytes = int(row["total_bytes"] or 0)
     return {
         "total_packets": int(row["total_packets"] or 0),
+        "total_bytes": total_bytes,
+        "total_volume_formatted": format_byte_size(total_bytes),
         "total_flows": int(row["total_flows"] or 0),
         "normal_traffic": int(row["normal_traffic"] or 0),
         "detected_attacks": int(row["detected_attacks"] or 0),

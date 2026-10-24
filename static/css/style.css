@@ -922,3 +922,94 @@ h1, h2, h3, h4, h5, h6, .tech-font {
     font-family: var(--font-mono);
     font-size: 0.75rem;
 }
+
+/* ==========================================================================
+   REAL-TIME THREAT NOTIFICATION TOASTS
+   ========================================================================== */
+.toast-container-tech {
+    position: fixed;
+    top: 72px;
+    right: 20px;
+    z-index: 1090;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 380px;
+    pointer-events: none;
+}
+
+.toast-tech {
+    pointer-events: auto;
+    background-color: var(--nt-surface-2);
+    border: 1px solid var(--nt-red-border);
+    border-radius: var(--radius-widget);
+    padding: 14px 18px;
+    box-shadow: 0 8px 32px rgba(215, 25, 32, 0.25), 0 2px 8px rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast-tech.toast-fadeout {
+    opacity: 0;
+    transform: translateX(30px);
+}
+
+.toast-tech-icon {
+    color: var(--nt-red);
+    font-size: 1.1rem;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.toast-tech-content {
+    flex-grow: 1;
+}
+
+.toast-tech-title {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--nt-white);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.toast-tech-desc {
+    font-size: 0.75rem;
+    color: var(--nt-gray-300);
+    line-height: 1.4;
+    margin: 0;
+}
+
+.toast-tech-close {
+    background: transparent;
+    border: none;
+    color: var(--nt-gray-500);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    margin-left: 8px;
+    transition: color 0.15s ease;
+}
+
+.toast-tech-close:hover {
+    color: var(--nt-white);
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

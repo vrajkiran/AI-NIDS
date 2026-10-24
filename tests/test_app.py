@@ -42,6 +42,8 @@ class TestAppRoutes(unittest.TestCase):
     def test_database_summary_and_chart_data(self):
         summary = get_dashboard_summary(DATABASE_PATH)
         self.assertIn("total_packets", summary)
+        self.assertIn("total_bytes", summary)
+        self.assertIn("total_volume_formatted", summary)
         self.assertIn("total_flows", summary)
         self.assertIn("normal_traffic", summary)
         self.assertIn("detected_attacks", summary)
@@ -50,6 +52,10 @@ class TestAppRoutes(unittest.TestCase):
         self.assertIn("benign_attack", chart_data)
         self.assertIn("traffic_over_time", chart_data)
         self.assertIn("attack_count", chart_data)
+
+    def test_clear_history_endpoint(self):
+        resp = self.client.post("/clear-history")
+        self.assertEqual(resp.status_code, 302)
 
     def test_demo_data_lifecycle(self):
         clear_demo_data(DATABASE_PATH)

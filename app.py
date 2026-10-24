@@ -13,6 +13,7 @@ from flask import Flask, Response, jsonify, redirect, render_template, request, 
 from config import CAPTURE_DURATION, DATABASE_PATH, EVALUATION_PATH, HOST, NETWORK_INTERFACE, PORT, SECRET_KEY
 from database.db import (
     clear_demo_data,
+    clear_real_data,
     create_database,
     fetch_latest_alerts,
     fetch_latest_traffic,
@@ -286,6 +287,14 @@ def clear_demo():
     clear_demo_data(DATABASE_PATH)
     with monitor_lock:
         monitor_status["message"] = "Demonstration data cleared. Real records preserved."
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/clear-history", methods=["POST"])
+def clear_history():
+    result = clear_real_data(DATABASE_PATH)
+    with monitor_lock:
+        monitor_status["message"] = f"Live capture history reset ({result['traffic_deleted']} flows cleared). Demo data preserved."
     return redirect(url_for("dashboard"))
 
 

@@ -49,6 +49,10 @@
             <form method="post" action="{{ url_for('clear_demo') }}">
                 <button class="btn-clear-log" style="padding: 7px 14px;" type="submit" title="Delete ONLY demo records, leaving real records intact">🗑 CLEAR DEMO</button>
             </form>
+
+            <form method="post" action="{{ url_for('clear_history') }}">
+                <button class="btn-clear-log" style="padding: 7px 14px; color: var(--nt-gray-300);" type="submit" title="Reset live capture flow logs, keeping demo data">↺ RESET LIVE</button>
+            </form>
         </div>
     </div>
     {% if status.error %}
@@ -70,6 +74,22 @@
                     <line x1="21" y1="6" x2="3" y2="6"></line>
                     <line x1="21" y1="14" x2="3" y2="14"></line>
                     <line x1="21" y1="18" x2="3" y2="18"></line>
+                </svg>
+            </span>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">VOLUME INSPECTED</span>
+                <span class="metric-value" id="totalVolume">{{ summary.total_volume_formatted }}</span>
+            </div>
+            <span class="metric-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                    <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                    <line x1="6" y1="18" x2="6.01" y2="18"></line>
                 </svg>
             </span>
         </div>

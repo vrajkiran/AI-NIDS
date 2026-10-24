@@ -87,15 +87,54 @@ async function refreshStatus() {
     }
 }
 
+let previousActiveAlertCount = null;
+
+function showThreatToast(title, message, isHigh = true) {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = "toast-tech";
+    toast.innerHTML = `
+        <span class="toast-tech-icon">⚠</span>
+        <div class="toast-tech-content">
+            <div class="toast-tech-title">
+                <span>${escapeHtml(title)}</span>
+                <span class="${isHigh ? 'badge-severity-high' : 'badge-severity-medium'}">${isHigh ? 'HIGH' : 'MEDIUM'}</span>
+            </div>
+            <p class="toast-tech-desc">${escapeHtml(message)}</p>
+        </div>
+        <button class="toast-tech-close" aria-label="Close" onclick="this.parentElement.remove()">✕</button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add("toast-fadeout");
+        setTimeout(() => toast.remove(), 300);
+    }, 6000);
+}
+
 async function refreshSummary() {
     try {
         const response = await fetch("/api/summary");
         const summary = await response.json();
         setText("totalPackets", summary.total_packets);
+        setText("totalVolume", summary.total_volume_formatted);
         setText("totalFlows", summary.total_flows);
         setText("normalTraffic", summary.normal_traffic);
         setText("detectedAttacks", summary.detected_attacks);
         setText("activeAlerts", summary.active_alerts);
+
+        if (previousActiveAlertCount !== null && summary.active_alerts > previousActiveAlertCount) {
+            const delta = summary.active_alerts - previousActiveAlertCount;
+            showThreatToast(
+                "CRITICAL THREAT DETECTED",
+                `${delta} new security intrusion alert${delta > 1 ? 's' : ''} flagged by Random Forest model.`,
+                true
+            );
+        }
+        previousActiveAlertCount = summary.active_alerts;
 
         const demoBadge = document.getElementById("demoBannerBadge");
         if (demoBadge) {
