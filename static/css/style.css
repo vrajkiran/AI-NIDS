@@ -1013,3 +1013,200 @@ h1, h2, h3, h4, h5, h6, .tech-font {
         transform: translateX(0);
     }
 }
+
+/* ==========================================================================
+   INTERACTIVE KPI CARDS (Click-to-Filter)
+   ========================================================================== */
+.metric-card.interactive {
+    cursor: pointer;
+    user-select: none;
+}
+
+.metric-card.interactive:active {
+    transform: translateY(0);
+}
+
+.metric-card.interactive.active-filter {
+    border-color: var(--nt-white) !important;
+    background-color: var(--nt-surface-3);
+    box-shadow: 0 0 18px rgba(255, 255, 255, 0.15);
+}
+
+.metric-card.danger.interactive.active-filter {
+    border-color: var(--nt-red) !important;
+    box-shadow: 0 0 20px rgba(215, 25, 32, 0.35);
+}
+
+.metric-card.warning.interactive.active-filter {
+    border-color: #ffd166 !important;
+    box-shadow: 0 0 18px rgba(255, 209, 102, 0.25);
+}
+
+.metric-card.success.interactive.active-filter {
+    border-color: #06d6a0 !important;
+    box-shadow: 0 0 18px rgba(6, 214, 160, 0.25);
+}
+
+/* ==========================================================================
+   CLICKABLE TABLE ROWS & COPYABLE IP UTILITIES
+   ========================================================================== */
+.table-tech tbody tr.clickable-row {
+    cursor: pointer;
+}
+
+.table-tech tbody tr.clickable-row:hover td {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.copyable-ip {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: all 0.15s ease;
+}
+
+.copyable-ip:hover {
+    background-color: var(--nt-surface-4);
+    color: var(--nt-white);
+}
+
+.copyable-ip::after {
+    content: '📋';
+    font-size: 9px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.copyable-ip:hover::after {
+    opacity: 0.7;
+}
+
+.btn-stream-paused {
+    background-color: rgba(255, 209, 102, 0.15) !important;
+    border-color: #ffd166 !important;
+    color: #ffd166 !important;
+}
+
+/* ==========================================================================
+   TECHNICAL FLOW & THREAT INSPECTOR MODAL (Nothing OS Monospace)
+   ========================================================================== */
+.modal-tech {
+    background-color: var(--nt-surface-1);
+    border: 1px solid var(--nt-border-light);
+    border-radius: var(--radius-widget);
+    color: var(--nt-white);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 24px rgba(255, 255, 255, 0.04);
+}
+
+.modal-header-tech {
+    border-bottom: 1px solid var(--nt-border);
+    padding: 16px 22px;
+    background-color: var(--nt-surface-2);
+    border-top-left-radius: var(--radius-widget);
+    border-top-right-radius: var(--radius-widget);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-close-tech {
+    background: transparent;
+    border: 1px solid var(--nt-border);
+    color: var(--nt-gray-300);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.btn-close-tech:hover {
+    border-color: var(--nt-white);
+    color: var(--nt-white);
+    background-color: var(--nt-surface-3);
+}
+
+.modal-body-tech {
+    padding: 22px;
+    font-family: var(--font-mono);
+}
+
+.modal-footer-tech {
+    border-top: 1px solid var(--nt-border);
+    padding: 14px 22px;
+    background-color: var(--nt-surface-2);
+    border-bottom-left-radius: var(--radius-widget);
+    border-bottom-right-radius: var(--radius-widget);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.inspector-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--nt-gray-500);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inspector-section-title::before {
+    content: '▪';
+    color: var(--nt-red);
+}
+
+.inspector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.inspector-card {
+    background-color: var(--nt-surface-2);
+    border: 1px solid var(--nt-border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+}
+
+.inspector-card-label {
+    font-size: 0.65rem;
+    color: var(--nt-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.inspector-card-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--nt-white);
+    word-break: break-all;
+}
+
+.confidence-bar-container {
+    background-color: var(--nt-surface-3);
+    border-radius: var(--radius-pill);
+    height: 8px;
+    width: 100%;
+    overflow: hidden;
+    margin-top: 6px;
+}
+
+.confidence-bar-fill {
+    height: 100%;
+    transition: width 0.6s ease;
+}

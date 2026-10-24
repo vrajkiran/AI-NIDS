@@ -15,8 +15,12 @@
 
 <div class="panel-tech">
     <div class="table-toolbar">
-        <input type="text" id="trafficSearchInput" class="table-search-input" placeholder="🔍 Search IP, port, protocol, or prediction...">
+        <input type="text" id="trafficSearchInput" class="table-search-input" placeholder="🔍 Search IP, port, protocol, or prediction... [Press /]">
         <div class="d-flex align-items-center gap-2">
+            <span class="mono-font small text-muted d-none d-lg-inline me-1">[ / ] Search &nbsp; [ Space ] Pause</span>
+            <button id="btnPauseStream" class="btn-export" type="button" onclick="toggleStreamPause()" title="Freeze / resume live table auto-refresh (Shortcut: Space)">
+                <span id="pauseIcon">⏸</span> <span id="pauseText">PAUSE FEED</span>
+            </button>
             <a class="btn-export" href="{{ url_for('export_traffic') }}">📥 EXPORT CSV</a>
         </div>
     </div>

@@ -112,7 +112,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-xl">
-        <div class="metric-card success">
+        <div class="metric-card success interactive" id="cardNormalTraffic" onclick="filterDashboardByCard('BENIGN')" title="Click to filter recent traffic to Benign flows only">
             <div>
                 <span class="metric-label">NORMAL TRAFFIC</span>
                 <span class="metric-value" id="normalTraffic">{{ summary.normal_traffic }}</span>
@@ -126,7 +126,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-xl">
-        <div class="metric-card danger">
+        <div class="metric-card danger interactive" id="cardDetectedAttacks" onclick="filterDashboardByCard('ATTACK')" title="Click to filter recent traffic to Attack records only">
             <div>
                 <span class="metric-label">DETECTED ATTACKS</span>
                 <span class="metric-value" id="detectedAttacks">{{ summary.detected_attacks }}</span>
@@ -141,7 +141,7 @@
         </div>
     </div>
     <div class="col-sm-6 col-xl">
-        <div class="metric-card warning">
+        <div class="metric-card warning interactive" id="cardActiveAlerts" onclick="filterDashboardByCard('ALERT')" title="Click to filter recent alerts to Open threats only">
             <div>
                 <span class="metric-label">ACTIVE ALERTS</span>
                 <span class="metric-value" id="activeAlerts">{{ summary.active_alerts }}</span>

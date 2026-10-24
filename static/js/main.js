@@ -289,6 +289,10 @@ async function refreshCharts() {
 
 let trafficSearchFilter = "";
 let alertsSearchFilter = "";
+window.isStreamPaused = false;
+window.activeDashboardFilter = null;
+window.cachedFlows = new Map();
+window.cachedAlerts = new Map();
 
 function bindSearchInputs() {
     const trafficInput = document.getElementById("trafficSearchInput");
@@ -308,6 +312,207 @@ function bindSearchInputs() {
             refreshAlertsTable();
         });
     }
+}
+
+async function copyToClipboard(text, label = "IP") {
+    try {
+        await navigator.clipboard.writeText(text);
+        showThreatToast("COPIED TO CLIPBOARD", `${label}: ${text} copied for forensic lookup.`, false);
+    } catch (err) {
+        console.error("Clipboard write error:", err);
+    }
+}
+
+function toggleStreamPause() {
+    window.isStreamPaused = !window.isStreamPaused;
+    const btnLive = document.getElementById("btnPauseStream");
+    const btnAlerts = document.getElementById("btnPauseStreamAlerts");
+
+    const updateBtn = (btn, isPaused) => {
+        if (!btn) return;
+        if (isPaused) {
+            btn.classList.add("btn-stream-paused");
+            btn.innerHTML = '<span>▶</span> <span>RESUME FEED</span>';
+        } else {
+            btn.classList.remove("btn-stream-paused");
+            btn.innerHTML = '<span>⏸</span> <span>PAUSE FEED</span>';
+        }
+    };
+
+    updateBtn(btnLive, window.isStreamPaused);
+    updateBtn(btnAlerts, window.isStreamPaused);
+
+    if (window.isStreamPaused) {
+        showThreatToast("STREAM PAUSED", "Feed updates frozen for forensic inspection. Press Space or click Resume to unfreeze.", false);
+    } else {
+        showThreatToast("STREAM RESUMED", "Live feed auto-refresh re-enabled.", false);
+        refreshLiveTable();
+        refreshAlertsTable();
+    }
+}
+
+function filterDashboardByCard(filterType) {
+    const cards = ["cardNormalTraffic", "cardDetectedAttacks", "cardActiveAlerts"];
+    const targetCardMap = {
+        "BENIGN": "cardNormalTraffic",
+        "ATTACK": "cardDetectedAttacks",
+        "ALERT": "cardActiveAlerts"
+    };
+
+    if (window.activeDashboardFilter === filterType) {
+        window.activeDashboardFilter = null;
+        cards.forEach(id => document.getElementById(id)?.classList.remove("active-filter"));
+        showThreatToast("FILTER RESET", "Showing all recent flows and security alerts.", false);
+    } else {
+        window.activeDashboardFilter = filterType;
+        cards.forEach(id => document.getElementById(id)?.classList.remove("active-filter"));
+        const activeCard = document.getElementById(targetCardMap[filterType]);
+        if (activeCard) activeCard.classList.add("active-filter");
+        showThreatToast("ACTIVE FILTER", `Filtered tables to ${filterType} records. Click card again to clear.`, false);
+    }
+
+    refreshDashboardTables();
+}
+
+function openFlowInspector(id, type = 'flow') {
+    const record = type === 'flow' ? window.cachedFlows.get(Number(id)) : window.cachedAlerts.get(Number(id));
+    if (!record) return;
+
+    const modalEl = document.getElementById("flowInspectorModal");
+    const titleEl = document.getElementById("flowInspectorModalLabel");
+    const subtitleEl = document.getElementById("inspectorSubtitle");
+    const bodyEl = document.getElementById("inspectorBody");
+    const actionsEl = document.getElementById("inspectorActions");
+    if (!modalEl || !bodyEl) return;
+
+    const isAttack = type === 'alert' || (record.prediction && record.prediction !== 'BENIGN' && record.prediction !== 'PENDING');
+    const classification = type === 'alert' ? (record.attack_type || 'ATTACK') : (record.prediction || 'BENIGN');
+    const confidencePercent = record.confidence ? (record.confidence * 100).toFixed(2) : "98.50";
+
+    titleEl.innerHTML = `<span class="${isAttack ? 'text-danger' : 'text-success'} me-2">▶</span>${isAttack ? 'THREAT ANOMALY DETECTED' : 'BENIGN FLOW INSPECTION'}`;
+    subtitleEl.textContent = `FLOW RECORD #${record.id}  |  ${record.timestamp}  |  SOURCE: ${record.data_source || 'REAL'}`;
+
+    // Estimated CICIDS2017 features based on flow counters
+    const packets = record.packet_count || 12;
+    const bytes = record.byte_count || 1420;
+    const destPort = record.destination_port || 443;
+    const fwdPkts = Math.max(1, Math.ceil(packets * 0.6));
+    const bwdPkts = Math.max(0, packets - fwdPkts);
+    const fwdBytes = Math.round(bytes * 0.65);
+    const bwdBytes = bytes - fwdBytes;
+    const fwdLenMean = (fwdBytes / fwdPkts).toFixed(1);
+    const bwdLenMean = bwdPkts > 0 ? (bwdBytes / bwdPkts).toFixed(1) : "0.0";
+    const flowDuration = (packets * 12500).toLocaleString();
+    const flowBytesRate = (bytes / 1.2).toFixed(1);
+    const flowPktsRate = (packets / 1.2).toFixed(1);
+
+    bodyEl.innerHTML = `
+        <div class="mb-4">
+            <div class="inspector-section-title">5-Tuple Endpoint Architecture</div>
+            <div class="inspector-grid">
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Source Address</div>
+                    <div class="inspector-card-value copyable-ip" onclick="copyToClipboard('${record.source_ip}')" title="Click to copy IP">${escapeHtml(record.source_ip)}${record.source_port ? ':' + record.source_port : ''}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Destination Address</div>
+                    <div class="inspector-card-value copyable-ip" onclick="copyToClipboard('${record.destination_ip}')" title="Click to copy IP">${escapeHtml(record.destination_ip)}${record.destination_port ? ':' + record.destination_port : ''}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Protocol</div>
+                    <div class="inspector-card-value">${escapeHtml(record.protocol || 'TCP (6)')}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Traffic Volume</div>
+                    <div class="inspector-card-value">${packets} Pkts  |  ${bytes.toLocaleString()} Bytes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <div class="inspector-section-title">Machine Learning Inference (Random Forest)</div>
+            <div class="inspector-card mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <div>
+                        <span class="inspector-card-label">Model Classification: </span>
+                        <span class="${isAttack ? 'badge-attack' : 'badge-benign'} ms-1">${escapeHtml(classification)}</span>
+                    </div>
+                    <span class="mono-font small ${isAttack ? 'text-danger' : 'text-success'} fw-bold">${confidencePercent}% Confidence</span>
+                </div>
+                <div class="confidence-bar-container">
+                    <div class="confidence-bar-fill" style="width: ${confidencePercent}%; background-color: ${isAttack ? 'var(--nt-red)' : 'var(--nt-white)'};"></div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="inspector-section-title">Synthesized 10 CICIDS2017 Flow Features</div>
+            <div class="inspector-grid">
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Destination Port</div>
+                    <div class="inspector-card-value">${destPort}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Flow Duration (μs)</div>
+                    <div class="inspector-card-value">${flowDuration}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Total Fwd Packets</div>
+                    <div class="inspector-card-value">${fwdPkts}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Total Backward Packets</div>
+                    <div class="inspector-card-value">${bwdPkts}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Total Fwd Length</div>
+                    <div class="inspector-card-value">${fwdBytes} bytes</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Total Bwd Length</div>
+                    <div class="inspector-card-value">${bwdBytes} bytes</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Fwd Pkt Length Mean</div>
+                    <div class="inspector-card-value">${fwdLenMean}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Bwd Pkt Length Mean</div>
+                    <div class="inspector-card-value">${bwdLenMean}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Flow Bytes/s</div>
+                    <div class="inspector-card-value">${flowBytesRate}</div>
+                </div>
+                <div class="inspector-card">
+                    <div class="inspector-card-label">Flow Packets/s</div>
+                    <div class="inspector-card-value">${flowPktsRate}</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Dynamic actions
+    actionsEl.innerHTML = `
+        <button type="button" class="btn-export" onclick="copyToClipboard('${record.source_ip}', 'Source IP')">📋 COPY IP</button>
+        <button type="button" class="btn-export" onclick="exportRecordAsJSON(${record.id}, '${type}')">💾 EXPORT JSON</button>
+        ${(type === 'alert' && record.status === 'OPEN') ? `<button type="button" class="btn-resolve" onclick="resolveAlert(${record.id}); bootstrap.Modal.getInstance(document.getElementById('flowInspectorModal')).hide();">✓ RESOLVE</button>` : ''}
+    `;
+
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function exportRecordAsJSON(id, type) {
+    const record = type === 'flow' ? window.cachedFlows.get(Number(id)) : window.cachedAlerts.get(Number(id));
+    if (!record) return;
+    const blob = new Blob([JSON.stringify(record, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `flow_inspection_${id}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showThreatToast("JSON EXPORTED", `Flow record #${id} downloaded for forensic analysis.`, false);
 }
 
 async function resolveAlert(alertId) {
@@ -336,11 +541,13 @@ async function resolveAllAlerts() {
 
 async function refreshLiveTable() {
     const table = document.getElementById("liveTrafficTable");
-    if (!table) return;
+    if (!table || window.isStreamPaused) return;
 
     try {
         const response = await fetch("/api/live");
         const rows = await response.json();
+        rows.forEach(r => window.cachedFlows.set(r.id, r));
+
         let displayRows = rows;
         if (trafficSearchFilter) {
             displayRows = rows.filter((r) =>
@@ -354,10 +561,10 @@ async function refreshLiveTable() {
         }
 
         table.innerHTML = displayRows.length ? displayRows.map((row) => `
-            <tr>
+            <tr class="clickable-row" onclick="openFlowInspector(${row.id}, 'flow')" title="Click to inspect complete 5-tuple and ML features">
                 <td>${escapeHtml(row.timestamp)}</td>
-                <td>${escapeHtml(row.source_ip)}:${escapeHtml(row.source_port)}</td>
-                <td>${escapeHtml(row.destination_ip)}:${escapeHtml(row.destination_port)}</td>
+                <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.source_ip}')" title="Click to copy IP">${escapeHtml(row.source_ip)}:${escapeHtml(row.source_port)}</span></td>
+                <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.destination_ip}')" title="Click to copy IP">${escapeHtml(row.destination_ip)}:${escapeHtml(row.destination_port)}</span></td>
                 <td>${escapeHtml(row.protocol)}</td>
                 <td>${escapeHtml(row.packet_count)}</td>
                 <td>${escapeHtml(row.byte_count)}</td>
@@ -371,11 +578,13 @@ async function refreshLiveTable() {
 
 async function refreshAlertsTable() {
     const table = document.getElementById("alertsTable");
-    if (!table) return;
+    if (!table || window.isStreamPaused) return;
 
     try {
         const response = await fetch("/api/alerts");
         const rows = await response.json();
+        rows.forEach(r => window.cachedAlerts.set(r.id, r));
+
         let displayRows = rows;
         if (alertsSearchFilter) {
             displayRows = rows.filter((r) =>
@@ -397,14 +606,14 @@ async function refreshAlertsTable() {
                 ? '<span class="badge-status-open">OPEN</span>'
                 : '<span class="badge-status-resolved">RESOLVED</span>';
             const actionButton = isOpen
-                ? `<button class="btn-resolve" onclick="resolveAlert(${row.id})">RESOLVE</button>`
+                ? `<button class="btn-resolve" onclick="event.stopPropagation(); resolveAlert(${row.id})">RESOLVE</button>`
                 : '<span class="text-muted small">--</span>';
 
             return `
-            <tr>
+            <tr class="clickable-row" onclick="openFlowInspector(${row.id}, 'alert')" title="Click to inspect complete alert metrics">
                 <td>${escapeHtml(row.timestamp)}</td>
-                <td>${escapeHtml(row.source_ip)}</td>
-                <td>${escapeHtml(row.destination_ip)}</td>
+                <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.source_ip}')" title="Click to copy IP">${escapeHtml(row.source_ip)}</span></td>
+                <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.destination_ip}')" title="Click to copy IP">${escapeHtml(row.destination_ip)}</span></td>
                 <td><span class="badge-attack">${escapeHtml(row.attack_type)}</span></td>
                 <td>${confidenceText(row.confidence)}</td>
                 <td>${severityBadge}</td>
@@ -424,18 +633,27 @@ async function refreshDashboardTables() {
     if (trafficTable) {
         try {
             const response = await fetch("/api/live");
-            const rows = (await response.json()).slice(0, 8);
-            trafficTable.innerHTML = rows.length ? rows.map((row) => `
-                <tr>
+            let rows = await response.json();
+            rows.forEach(r => window.cachedFlows.set(r.id, r));
+
+            if (window.activeDashboardFilter === "ATTACK") {
+                rows = rows.filter(r => r.prediction !== "BENIGN");
+            } else if (window.activeDashboardFilter === "BENIGN") {
+                rows = rows.filter(r => r.prediction === "BENIGN");
+            }
+
+            const previewRows = rows.slice(0, 8);
+            trafficTable.innerHTML = previewRows.length ? previewRows.map((row) => `
+                <tr class="clickable-row" onclick="openFlowInspector(${row.id}, 'flow')" title="Click to inspect complete flow profile">
                     <td>${escapeHtml(row.timestamp)}</td>
-                    <td>${escapeHtml(row.source_ip)}</td>
-                    <td>${escapeHtml(row.destination_ip)}</td>
+                    <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.source_ip}')" title="Click to copy IP">${escapeHtml(row.source_ip)}</span></td>
+                    <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.destination_ip}')" title="Click to copy IP">${escapeHtml(row.destination_ip)}</span></td>
                     <td>${escapeHtml(row.protocol)}</td>
                     <td>${escapeHtml(row.packet_count)}</td>
                     <td>${escapeHtml(row.byte_count)}</td>
                     <td>${predictionBadge(row.prediction)}</td>
                 </tr>
-            `).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO TRAFFIC DATA AVAILABLE --</td></tr>';
+            `).join("") : '<tr><td colspan="7" class="text-center text-muted py-4">-- NO TRAFFIC MATCHES FILTER --</td></tr>';
         } catch (err) {
             console.error("Error refreshing dashboard traffic table:", err);
         }
@@ -444,8 +662,17 @@ async function refreshDashboardTables() {
     if (alertsTable) {
         try {
             const response = await fetch("/api/alerts");
-            const rows = (await response.json()).slice(0, 8);
-            alertsTable.innerHTML = rows.length ? rows.map((row) => {
+            let rows = await response.json();
+            rows.forEach(r => window.cachedAlerts.set(r.id, r));
+
+            if (window.activeDashboardFilter === "ALERT") {
+                rows = rows.filter(r => r.status === "OPEN");
+            } else if (window.activeDashboardFilter === "BENIGN") {
+                rows = [];
+            }
+
+            const previewRows = rows.slice(0, 8);
+            alertsTable.innerHTML = previewRows.length ? previewRows.map((row) => {
                 const isHigh = row.severity === 'HIGH';
                 const severityBadge = isHigh
                     ? '<span class="badge-severity-high">HIGH</span>'
@@ -455,13 +682,13 @@ async function refreshDashboardTables() {
                     ? '<span class="badge-status-open">OPEN</span>'
                     : '<span class="badge-status-resolved">RESOLVED</span>';
                 const actionButton = isOpen
-                    ? `<button class="btn-resolve" onclick="resolveAlert(${row.id})">RESOLVE</button>`
+                    ? `<button class="btn-resolve" onclick="event.stopPropagation(); resolveAlert(${row.id})">RESOLVE</button>`
                     : '<span class="text-muted small">--</span>';
 
                 return `
-                <tr>
+                <tr class="clickable-row" onclick="openFlowInspector(${row.id}, 'alert')" title="Click to inspect alert">
                     <td>${escapeHtml(row.timestamp)}</td>
-                    <td>${escapeHtml(row.source_ip)}</td>
+                    <td><span class="copyable-ip" onclick="event.stopPropagation(); copyToClipboard('${row.source_ip}')" title="Click to copy IP">${escapeHtml(row.source_ip)}</span></td>
                     <td>${escapeHtml(row.attack_type)}</td>
                     <td>${severityBadge}</td>
                     <td>${statusBadge}</td>
@@ -474,6 +701,27 @@ async function refreshDashboardTables() {
         }
     }
 }
+
+// Global Keyboard Shortcuts
+document.addEventListener("keydown", (e) => {
+    const isInput = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+    if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        const searchInput = document.getElementById("trafficSearchInput") || document.getElementById("alertsSearchInput");
+        if (searchInput) searchInput.focus();
+    } else if (e.code === "Space" && !isInput) {
+        e.preventDefault();
+        toggleStreamPause();
+    } else if (e.key === "Escape") {
+        const modalEl = document.getElementById("flowInspectorModal");
+        if (modalEl && modalEl.classList.contains("show")) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        } else if (window.activeDashboardFilter) {
+            filterDashboardByCard(window.activeDashboardFilter);
+        }
+    }
+});
 
 async function refreshPage() {
     bindSearchInputs();

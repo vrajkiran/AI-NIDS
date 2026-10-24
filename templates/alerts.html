@@ -15,8 +15,12 @@
 
 <div class="panel-tech">
     <div class="table-toolbar">
-        <input type="text" id="alertsSearchInput" class="table-search-input" placeholder="🔍 Search IP, attack type, severity, or status...">
+        <input type="text" id="alertsSearchInput" class="table-search-input" placeholder="🔍 Search IP, attack type, severity, or status... [Press /]">
         <div class="d-flex align-items-center gap-2">
+            <span class="mono-font small text-muted d-none d-lg-inline me-1">[ / ] Search &nbsp; [ Space ] Pause</span>
+            <button id="btnPauseStreamAlerts" class="btn-export" type="button" onclick="toggleStreamPause()" title="Freeze / resume live alerts auto-refresh (Shortcut: Space)">
+                <span id="pauseIconAlerts">⏸</span> <span id="pauseTextAlerts">PAUSE FEED</span>
+            </button>
             <button class="btn-resolve-all" onclick="resolveAllAlerts()">✓ RESOLVE ALL</button>
             <a class="btn-export" href="{{ url_for('export_alerts') }}">📥 EXPORT CSV</a>
         </div>
