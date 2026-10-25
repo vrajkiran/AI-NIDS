@@ -18,17 +18,26 @@ class TestAppRoutes(unittest.TestCase):
         self.client = app.test_client()
 
     def test_page_routes_status_200(self):
-        for route in ["/", "/live", "/alerts", "/model"]:
+        for route in ["/", "/live", "/topology", "/alerts", "/model"]:
             with self.subTest(route=route):
                 response = self.client.get(route)
                 self.assertEqual(response.status_code, 200)
 
     def test_api_endpoints_return_json(self):
-        for api_route in ["/api/status", "/api/summary", "/api/live", "/api/alerts", "/api/charts"]:
+        for api_route in ["/api/status", "/api/summary", "/api/live", "/api/alerts", "/api/charts", "/api/topology"]:
             with self.subTest(api_route=api_route):
                 response = self.client.get(api_route)
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response.is_json)
+
+    def test_topology_data_structure(self):
+        response = self.client.get("/api/topology")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertIn("nodes", data)
+        self.assertIn("edges", data)
+        self.assertIn("total_nodes", data)
+        self.assertIn("total_edges", data)
 
     def test_start_monitoring_handles_missing_or_invalid_duration_safely(self):
         # Missing duration must not crash with TypeError

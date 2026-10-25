@@ -316,3 +316,94 @@ def get_chart_data(database_path: Path) -> dict:
         "traffic_over_time": list(reversed([dict(row) for row in timeline])),
         "attack_count": [dict(row) for row in attacks],
     }
+
+
+def get_network_topology(database_path: Path, limit: int = 150) -> dict:
+    """Extract graph nodes (hosts/IPs) and directed edges (traffic flows) for topology visualization."""
+    with get_connection(database_path) as connection:
+        flows = connection.execute(
+            """
+            SELECT id, timestamp, source_ip, destination_ip, source_port, destination_port,
+                   protocol, packet_count, byte_count, prediction, confidence, data_source
+            FROM network_traffic
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,)
+        ).fetchall()
+
+    nodes_map = {}
+    edges = []
+
+    def is_private_ip(ip: str) -> bool:
+        if not ip:
+            return False
+        return (
+            ip.startswith("192.168.")
+            or ip.startswith("10.")
+            or ip.startswith("172.16.")
+            or ip.startswith("127.")
+        )
+
+    for flow in flows:
+        src = flow["source_ip"] or "Unknown"
+        dst = flow["destination_ip"] or "Unknown"
+        pred = flow["prediction"] or "BENIGN"
+        is_attack = pred not in ["BENIGN", "PENDING", "ERROR"]
+
+        for ip, is_src in [(src, True), (dst, False)]:
+            if ip not in nodes_map:
+                is_priv = is_private_ip(ip)
+                nodes_map[ip] = {
+                    "id": ip,
+                    "label": ip,
+                    "is_private": is_priv,
+                    "is_attacker": False,
+                    "is_target": False,
+                    "threat_count": 0,
+                    "flow_count": 0,
+                    "packet_volume": 0,
+                }
+            nodes_map[ip]["flow_count"] += 1
+            nodes_map[ip]["packet_volume"] += (flow["packet_count"] or 0)
+            if is_attack:
+                nodes_map[ip]["threat_count"] += 1
+                if is_src:
+                    nodes_map[ip]["is_attacker"] = True
+                else:
+                    nodes_map[ip]["is_target"] = True
+
+        edges.append({
+            "id": f"edge_{flow['id']}",
+            "from": src,
+            "to": dst,
+            "protocol": flow["protocol"] or "TCP",
+            "packet_count": flow["packet_count"] or 1,
+            "byte_count": flow["byte_count"] or 0,
+            "prediction": pred,
+            "is_attack": is_attack,
+            "confidence": flow["confidence"],
+            "flow_id": flow["id"],
+        })
+
+    # Classify each node's architectural role
+    nodes = []
+    for ip, data in nodes_map.items():
+        if data["is_attacker"]:
+            node_type = "ATTACKER"
+        elif data["is_target"]:
+            node_type = "TARGET_SERVER"
+        elif data["is_private"]:
+            node_type = "INTERNAL_HOST"
+        else:
+            node_type = "EXTERNAL_BENIGN"
+        data["node_type"] = node_type
+        nodes.append(data)
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "total_nodes": len(nodes),
+        "total_edges": len(edges),
+        "attack_edges": sum(1 for e in edges if e["is_attack"]),
+    }

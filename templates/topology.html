@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="page-title">NETWORK TOPOLOGY GRAPH</h1>
+        <p class="page-subtitle">REAL-TIME 5-TUPLE HOST INTERACTION & THREAT VECTOR MAP</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="mono-font small text-muted d-none d-md-inline">💡 Click any host node or connection edge for deep forensic inspection</span>
+    </div>
+</div>
+
+<!-- Topology Quick Metric Strip -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-4">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">NETWORK HOSTS (NODES)</span>
+                <span class="metric-value" id="topoTotalNodes">0</span>
+            </div>
+            <span class="metric-icon">🌐</span>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="metric-card">
+            <div>
+                <span class="metric-label">ACTIVE FLOWS (EDGES)</span>
+                <span class="metric-value" id="topoTotalEdges">0</span>
+            </div>
+            <span class="metric-icon">⇄</span>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="metric-card danger">
+            <div>
+                <span class="metric-label">THREAT VECTORS</span>
+                <span class="metric-value text-danger" id="topoAttackEdges">0</span>
+            </div>
+            <span class="metric-icon">⚠</span>
+        </div>
+    </div>
+</div>
+
+<div class="panel-tech">
+    <!-- Toolbar -->
+    <div class="table-toolbar">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="mono-font small text-muted me-1">FILTER:</span>
+            <button type="button" class="topology-pill-btn active" id="btnFilterAll" onclick="setTopologyFilter('ALL')">ALL NODES</button>
+            <button type="button" class="topology-pill-btn" id="btnFilterAttacks" onclick="setTopologyFilter('ATTACKS')">⚠ ATTACKS ONLY</button>
+            <button type="button" class="topology-pill-btn" id="btnFilterInternal" onclick="setTopologyFilter('INTERNAL')">INTERNAL ONLY</button>
+        </div>
+        
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <input type="text" id="topoSearchInput" class="table-search-input" placeholder="🔍 Search IP in topology..." style="min-width: 220px;">
+            <button type="button" class="btn-export" id="btnTogglePhysics" onclick="togglePhysics()" title="Toggle force-directed physics simulation">
+                ⚛ PHYSICS: ON
+            </button>
+            <button type="button" class="btn-export" onclick="resetTopologyView()" title="Fit all nodes to screen">
+                ↺ FIT VIEW
+            </button>
+            <button type="button" class="btn-export" id="btnPauseTopology" onclick="toggleTopologyPause()" title="Pause live topology auto-refresh">
+                ⏸ PAUSE FEED
+            </button>
+        </div>
+    </div>
+
+    <!-- Graph Container -->
+    <div class="topology-container" id="topologyContainer">
+        <div id="networkTopologyCanvas" class="topology-canvas"></div>
+        
+        <!-- Interactive Legend -->
+        <div class="topology-legend">
+            <div class="d-flex flex-column gap-1">
+                <div><span class="legend-dot attacker"></span> <span class="text-danger fw-bold">ATTACKER (ROGUE IP)</span></div>
+                <div><span class="legend-dot target"></span> <span style="color: #00f0ff;">TARGET / SERVER</span></div>
+                <div><span class="legend-dot internal"></span> <span class="text-white">INTERNAL HOST</span></div>
+                <div><span class="legend-dot benign"></span> <span class="text-muted">EXTERNAL BENIGN</span></div>
+                <div class="mt-1 pt-1 border-top border-secondary small text-muted" style="font-size: 0.65rem;">
+                    Red edges = Anomaly / Attack flow
+                </div>
+            </div>
+        </div>
+
+        <!-- Node Details Sidebar Overlay (hidden until node clicked) -->
+        <div class="topology-sidebar d-none" id="topologySidebar">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <span class="small text-muted mono-font">HOST INSPECTOR</span>
+                    <h6 class="mono-font fw-bold mb-0 text-white" id="sidebarNodeIp">127.0.0.1</h6>
+                </div>
+                <button type="button" class="btn-close-tech" onclick="closeTopologySidebar()">✕</button>
+            </div>
+
+            <div class="mb-3">
+                <span class="badge" id="sidebarNodeRoleBadge">HOST</span>
+            </div>
+
+            <div class="d-flex flex-column gap-2 mb-3 small">
+                <div class="d-flex justify-content-between border-bottom border-dark pb-1">
+                    <span class="text-muted">Total Conversations:</span>
+                    <span class="text-white fw-bold" id="sidebarNodeFlows">0</span>
+                </div>
+                <div class="d-flex justify-content-between border-bottom border-dark pb-1">
+                    <span class="text-muted">Inspected Packets:</span>
+                    <span class="text-white fw-bold" id="sidebarNodePackets">0</span>
+                </div>
+                <div class="d-flex justify-content-between border-bottom border-dark pb-1">
+                    <span class="text-muted">Detected Threat Events:</span>
+                    <span class="fw-bold" id="sidebarNodeThreats">0</span>
+                </div>
+            </div>
+
+            <div class="d-flex flex-column gap-2">
+                <button type="button" class="btn-export w-100" id="btnSidebarCopyIp" onclick="copySidebarIp()">📋 COPY IP ADDRESS</button>
+                <a href="{{ url_for('live') }}" class="btn-export w-100 text-center text-decoration-none">🔍 VIEW IN LIVE TRAFFIC</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="{{ url_for('static', filename='js/topology.js', v='2.0') }}"></script>
+{% endblock %}

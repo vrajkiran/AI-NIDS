@@ -19,6 +19,7 @@ from database.db import (
     fetch_latest_traffic,
     get_chart_data,
     get_dashboard_summary,
+    get_network_topology,
     has_demo_data,
     insert_alert,
     insert_network_traffic,
@@ -228,6 +229,11 @@ def alerts():
     return render_template("alerts.html", alerts=fetch_latest_alerts(DATABASE_PATH, 100), status=monitor_status)
 
 
+@app.route("/topology")
+def topology():
+    return render_template("topology.html", status=monitor_status)
+
+
 @app.route("/model")
 def model():
     return render_template("model.html", metrics=read_model_metrics(), status=monitor_status)
@@ -341,6 +347,11 @@ def api_resolve_alert(alert_id: int):
 def api_resolve_all_alerts():
     count = resolve_all_alerts(DATABASE_PATH)
     return jsonify({"success": True, "resolved_count": count})
+
+
+@app.route("/api/topology")
+def api_topology():
+    return jsonify(get_network_topology(DATABASE_PATH))
 
 
 @app.route("/export/traffic")
